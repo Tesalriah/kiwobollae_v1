@@ -31,3 +31,8 @@ jwt:
   secret: ${JWT_SECRET:CHANGE_ME_dev_only_placeholder_secret}
   access-expiration: ${JWT_ACCESS_EXPIRATION:3600000}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:1209600000}
+
+app:
+  cookie:
+    # Secure 속성은 HTTPS에서만 쿠키를 전송하게 강제함. 로컬 http 개발 환경에서는 false로 둠.
+    secure: ${COOKIE_SECURE:false}

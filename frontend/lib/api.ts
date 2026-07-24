@@ -13,14 +13,48 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// The access token lives only in memory (never localStorage) — the store sets this
+// whenever it changes so plain fetch calls elsewhere can still attach it.
+let currentAccessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  currentAccessToken = token;
+}
+
+// The store registers a handler that calls /auth/reissue (using the httpOnly refresh
+// cookie) and updates in-memory state. Returns the new access token, or null if the
+// refresh itself failed (session is over — caller should treat this like a 401).
+type UnauthorizedHandler = () => Promise<string | null>;
+let onUnauthorized: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  onUnauthorized = handler;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  };
+  if (currentAccessToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${currentAccessToken}`;
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
+    credentials: 'include', // send/receive the httpOnly refresh_token cookie
   });
+
+  // Auth endpoints (login/signup/reissue/logout) never go through the refresh-and-retry
+  // flow — a 401 there means "bad credentials" or "no session", not "expired token".
+  const isAuthEndpoint = path.startsWith('/api/v1/auth/');
+  if (res.status === 401 && !isRetry && onUnauthorized && !isAuthEndpoint) {
+    const newToken = await onUnauthorized();
+    if (newToken) {
+      return request<T>(path, options, true);
+    }
+  }
 
   const body = await res.json().catch(() => null);
 
@@ -54,6 +88,12 @@ export interface LoginResponse {
   user: UserResponse;
 }
 
+export interface AccessTokenResponse {
+  accessToken: string;
+  tokenType: string;
+  user: UserResponse;
+}
+
 export interface SignupPayload {
   email: string;
   password: string;
@@ -74,4 +114,13 @@ export function signup(payload: SignupPayload): Promise<UserResponse> {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+// Silent refresh: relies solely on the httpOnly refresh_token cookie, no body needed.
+export function reissue(): Promise<AccessTokenResponse> {
+  return request<AccessTokenResponse>('/api/v1/auth/reissue', { method: 'POST' });
+}
+
+export function logout(): Promise<void> {
+  return request<void>('/api/v1/auth/logout', { method: 'POST' });
 }

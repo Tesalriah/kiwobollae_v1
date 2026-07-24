@@ -1,7 +1,14 @@
 'use client';
 // 키워볼래 — shared cross-page store (React Context + localStorage persistence)
 // Mirrors the prototype store.js: single wallet, journal/plant/card counters.
+//
+// accessToken/user/authed are persisted to localStorage along with everything
+// else, so a page reload keeps the session without any silent-refresh round
+// trip. lib/api.ts still keeps its own in-memory copy of the access token
+// (kept in sync via setAccessToken below) purely so it can attach the
+// Authorization header without importing the store.
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { reissue, logout as apiLogout, setAccessToken, setUnauthorizedHandler } from '@/lib/api';
 
 const KEY = 'kwb_store_v1';
 
@@ -22,11 +29,13 @@ export interface NotificationItem {
   broken?: boolean;
 }
 
+// Trimmed to just what the UI actually needs (identity, nav display name, role
+// gating) — deliberately not the full UserResponse, so phone/status/etc. never
+// end up sitting in localStorage.
 export interface CurrentUser {
   id: number;
   email: string;
   nickname: string;
-  name: string;
   role: string;
 }
 
@@ -98,6 +107,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setHydrated(true);
   }, []);
 
+  // Keep lib/api.ts's in-memory copy of the token in sync with whatever was
+  // just restored from (or later written to) localStorage.
+  useEffect(() => {
+    setAccessToken(state.accessToken);
+  }, [state.accessToken]);
+
+  // Registered once so any plain `request()` call in lib/api.ts that gets a 401 can
+  // trigger the same silent-refresh flow and retry with the new token.
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      try {
+        const res = await reissue();
+        const user: CurrentUser = { id: res.user.id, email: res.user.email, nickname: res.user.nickname, role: res.user.role };
+        setState((s) => ({ ...s, authed: true, accessToken: res.accessToken, user }));
+        return res.accessToken;
+      } catch {
+        setState((s) => ({ ...s, authed: false, accessToken: null, user: null }));
+        return null;
+      }
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
   useEffect(() => {
     if (!hydrated) return;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
@@ -128,9 +160,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => setState(DEFAULTS), []);
 
   const login = useCallback((accessToken: string, user: CurrentUser) => {
-    setState((s) => ({ ...s, authed: true, accessToken, user }));
+    // Re-pick fields explicitly: callers may pass a full UserResponse (structurally
+    // compatible), but only id/email/nickname/role should ever reach localStorage.
+    const trimmed: CurrentUser = { id: user.id, email: user.email, nickname: user.nickname, role: user.role };
+    setState((s) => ({ ...s, authed: true, accessToken, user: trimmed }));
   }, []);
-  const logout = useCallback(() => setState((s) => ({ ...s, authed: false, accessToken: null, user: null })), []);
+  const logout = useCallback(() => {
+    apiLogout().catch(() => {}); // best-effort: revoke the refresh token server-side too
+    setState((s) => ({ ...s, authed: false, accessToken: null, user: null }));
+  }, []);
 
   const markNotifRead = useCallback((id: number) => {
     setState((s) => ({ ...s, notifications: s.notifications.map((n) => (n.id === id ? { ...n, unread: false } : n)) }));
