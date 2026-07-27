@@ -7,6 +7,7 @@ import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
+import com.kiwobollae.api.auth.dto.request.WithdrawRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.AccessTokenResponse;
 import com.kiwobollae.api.auth.dto.response.LoginResponse;
@@ -145,6 +146,25 @@ public class AuthController {
 			@Valid @RequestBody PasswordChangeRequest request) {
 		authService.changePassword(userId, request);
 		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "회원탈퇴", description = "계정을 비활성화합니다(소프트 삭제). 데이터는 실제로 삭제되지 않고 status만 WITHDRAWN으로 바뀝니다. 모든 리프레시 토큰이 폐기되고 즉시 로그아웃됩니다.")
+	@PostMapping("/me/withdraw")
+	public ResponseEntity<ApiResponse<Void>> withdraw(
+			@AuthenticationPrincipal Long userId,
+			@RequestBody(required = false) WithdrawRequest request) {
+		authService.withdraw(userId, request != null ? request : new WithdrawRequest(null));
+
+		ResponseCookie expired = ResponseCookie.from(REFRESH_TOKEN_COOKIE, "")
+				.httpOnly(true)
+				.secure(cookieSecure)
+				.sameSite("Lax")
+				.path(AUTH_PATH)
+				.maxAge(0)
+				.build();
+		return ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, expired.toString())
+				.body(ApiResponse.<Void>success(null));
 	}
 
 	private ResponseEntity<ApiResponse<LoginResponse>> withRefreshCookie(TokenIssueResult result) {

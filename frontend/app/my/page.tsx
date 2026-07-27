@@ -6,6 +6,7 @@ import {
   getMe,
   updateProfile,
   verifyPassword,
+  withdraw,
   type UserResponse,
 } from "@/lib/api";
 import { ADDRESSES } from "@/lib/data";
@@ -88,6 +89,7 @@ export default function MyPage() {
     setNicknameAvailable(true);
     setNicknameError("");
     setChangingPassword(false);
+    setWithdrawing(false);
     setEditing(true);
   };
 
@@ -97,6 +99,7 @@ export default function MyPage() {
     setGateError("");
     setChangingPassword(false);
     setEditing(false);
+    setWithdrawing(false);
     setPasswordGateOpen(true);
   };
 
@@ -156,12 +159,17 @@ export default function MyPage() {
 
   const submitEdit = async () => {
     setFormError("");
-    if (nickname !== originalNickname && (!nicknameChecked || !nicknameAvailable)) {
+    if (
+      nickname !== originalNickname &&
+      (!nicknameChecked || !nicknameAvailable)
+    ) {
       setFormError("닉네임 중복확인을 먼저 완료해 주세요.");
       return;
     }
     if (phoneNumber && !PHONE_REGEX.test(phoneNumber)) {
-      setFormError("전화번호는 010 또는 011로 시작하는 숫자 10~11자리여야 해요.");
+      setFormError(
+        "전화번호는 010 또는 011로 시작하는 숫자 10~11자리여야 해요.",
+      );
       return;
     }
     setSubmitting(true);
@@ -211,13 +219,16 @@ export default function MyPage() {
     setPasswordError("");
     setEditing(false);
     setPasswordGateOpen(false);
+    setWithdrawing(false);
     setChangingPassword(true);
   };
 
   const submitPasswordChange = async () => {
     setPasswordError("");
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      setPasswordError(`새 비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 해요.`);
+      setPasswordError(
+        `새 비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 해요.`,
+      );
       return;
     }
     if (newPassword !== newPasswordConfirm) {
@@ -231,10 +242,49 @@ export default function MyPage() {
       showToast("비밀번호를 변경했어요.");
     } catch (e) {
       setPasswordError(
-        e instanceof ApiError ? e.message : "비밀번호 변경에 실패했어요. 다시 시도해 주세요.",
+        e instanceof ApiError
+          ? e.message
+          : "비밀번호 변경에 실패했어요. 다시 시도해 주세요.",
       );
     } finally {
       setPasswordSubmitting(false);
+    }
+  };
+
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawPassword, setWithdrawPassword] = useState("");
+  const [withdrawError, setWithdrawError] = useState("");
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+
+  const openWithdraw = () => {
+    setWithdrawPassword("");
+    setWithdrawError("");
+    setEditing(false);
+    setPasswordGateOpen(false);
+    setChangingPassword(false);
+    setWithdrawing(true);
+  };
+
+  const submitWithdraw = async () => {
+    setWithdrawError("");
+    if (profile?.provider === "LOCAL" && !withdrawPassword) {
+      setWithdrawError("비밀번호를 입력해 주세요.");
+      return;
+    }
+    setWithdrawSubmitting(true);
+    try {
+      await withdraw(withdrawPassword || undefined);
+      logout();
+      showToast("탈퇴가 완료됐어요. 그동안 이용해 주셔서 감사합니다.");
+      router.push("/");
+    } catch (e) {
+      setWithdrawError(
+        e instanceof ApiError
+          ? e.message
+          : "탈퇴 처리에 실패했어요. 다시 시도해 주세요.",
+      );
+    } finally {
+      setWithdrawSubmitting(false);
     }
   };
 
@@ -351,7 +401,9 @@ export default function MyPage() {
                   onClick={checkNickname}
                   className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl border-[1.5px] border-line bg-white text-[13px] font-bold text-[#5b6a54] transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark disabled:cursor-default disabled:opacity-60"
                 >
-                  {nickname !== originalNickname && nicknameChecked && nicknameAvailable
+                  {nickname !== originalNickname &&
+                  nicknameChecked &&
+                  nicknameAvailable
                     ? "사용가능 ✅"
                     : "중복확인"}
                 </button>
@@ -361,7 +413,9 @@ export default function MyPage() {
                   className={`text-xs ${nicknameError ? "font-semibold text-danger" : "text-[#a9b3a0]"}`}
                 >
                   {nicknameError ||
-                    (nickname !== originalNickname && nicknameChecked && nicknameAvailable
+                    (nickname !== originalNickname &&
+                    nicknameChecked &&
+                    nicknameAvailable
                       ? "사용할 수 있는 닉네임이에요."
                       : "")}
                 </span>
@@ -403,7 +457,8 @@ export default function MyPage() {
               type="button"
               disabled={
                 submitting ||
-                (nickname !== originalNickname && (!nicknameChecked || !nicknameAvailable))
+                (nickname !== originalNickname &&
+                  (!nicknameChecked || !nicknameAvailable))
               }
               onClick={submitEdit}
               className="flex-1 cursor-pointer rounded-xl bg-brand p-3 font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60"
@@ -552,6 +607,61 @@ export default function MyPage() {
       >
         로그아웃
       </button>
+
+      <div className="mt-3.5 text-center">
+        <button
+          type="button"
+          onClick={openWithdraw}
+          disabled={!profile}
+          className="cursor-pointer text-xs text-[#a9b3a0] underline-offset-2 hover:underline disabled:opacity-60"
+        >
+          회원탈퇴
+        </button>
+      </div>
+
+      {withdrawing && (
+        <div className="mt-6 rounded-[20px] border-[1.5px] border-danger-soft bg-white p-6 shadow-card">
+          <h2 className="mb-2 text-lg font-extrabold text-danger">회원탈퇴</h2>
+          <p className="mb-3.5 text-sm text-sub">
+            탈퇴하면 즉시 로그아웃되고 다시 로그인할 수 없어요.
+          </p>
+          {profile?.provider === "LOCAL" && (
+            <>
+              <label className={LABEL}>비밀번호</label>
+              <input
+                type="password"
+                value={withdrawPassword}
+                onChange={(e) => setWithdrawPassword(e.target.value)}
+                className={`${FIELD} mt-1.5`}
+              />
+            </>
+          )}
+
+          {withdrawError && (
+            <div className="mt-3.5 rounded-[11px] bg-danger-soft px-[13px] py-[11px] text-[13px] font-semibold text-danger">
+              {withdrawError}
+            </div>
+          )}
+
+          <div className="mt-5 flex gap-2.5">
+            <button
+              type="button"
+              disabled={withdrawSubmitting}
+              onClick={submitWithdraw}
+              className="flex-1 cursor-pointer rounded-xl bg-danger p-3 font-bold text-white transition-colors duration-150 hover:brightness-95 disabled:opacity-60"
+            >
+              탈퇴하기
+            </button>
+            <button
+              type="button"
+              onClick={() => setWithdrawing(false)}
+              className="flex-1 cursor-pointer rounded-xl border-[1.5px] border-line bg-white p-3 font-bold text-sub"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

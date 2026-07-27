@@ -5,6 +5,7 @@ import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
+import com.kiwobollae.api.auth.dto.request.WithdrawRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
@@ -145,6 +146,28 @@ public class AuthService {
 		}
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()));
+	}
+
+	@Transactional
+	public void withdraw(Long userId, WithdrawRequest request) {
+		User user = findById(userId);
+
+		if (user.getStatus() == UserStatus.WITHDRAWN) {
+			throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
+		}
+		if (user.getPassword() != null) {
+			// LOCAL accounts must re-confirm with their password; social accounts have
+			// none to check, so a valid access token alone is treated as confirmation.
+			if (request.password() == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
+				throw new BusinessException(ErrorCode.AUTH_CURRENT_PASSWORD_MISMATCH);
+			}
+		}
+
+		user.withdraw();
+
+		LocalDateTime now = LocalDateTime.now();
+		refreshTokenRepository.findAllByUser_IdAndRevokedAtIsNull(userId)
+				.forEach(token -> token.revoke(now));
 	}
 
 	private User findById(Long userId) {

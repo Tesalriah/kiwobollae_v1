@@ -93,4 +93,14 @@ public class User extends BaseTimeEntity {
 	public void changePassword(String encodedPassword) {
 		this.password = encodedPassword;
 	}
+
+	/**
+	 * Soft delete — flips status to WITHDRAWN and stamps withdrawnAt. No row is
+	 * ever physically removed; every FK (orders, journals, point history, ...)
+	 * stays intact for history/audit purposes.
+	 */
+	public void withdraw() {
+		this.status = UserStatus.WITHDRAWN;
+		this.withdrawnAt = LocalDateTime.now();
+	}
 }

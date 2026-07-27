@@ -184,3 +184,12 @@ export function verifyPassword(password: string): Promise<void> {
     body: JSON.stringify({ password }),
   });
 }
+
+// Soft delete: server flips status to WITHDRAWN and revokes every refresh token —
+// nothing is physically removed. password is required for LOCAL accounts only.
+export function withdraw(password?: string): Promise<void> {
+  return request<void>('/api/v1/auth/me/withdraw', {
+    method: 'POST',
+    body: JSON.stringify({ password: password || null }),
+  });
+}
