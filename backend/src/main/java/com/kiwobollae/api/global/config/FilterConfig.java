@@ -31,4 +31,17 @@ public class FilterConfig {
 		registration.setOrder(1);
 		return registration;
 	}
+
+	@Bean
+	public FilterRegistrationBean<RateLimitFilter> passwordVerifyRateLimitFilter(ObjectMapper objectMapper) {
+		// Guards against brute-forcing the current password via repeated verify/change attempts.
+		FilterRegistrationBean<RateLimitFilter> registration =
+				new FilterRegistrationBean<>(new RateLimitFilter(objectMapper, 5));
+		registration.addUrlPatterns(
+				ApiVersion.V1 + "/auth/me/password/verify",
+				ApiVersion.V1 + "/auth/me/password");
+		registration.setName("passwordVerifyRateLimitFilter");
+		registration.setOrder(1);
+		return registration;
+	}
 }

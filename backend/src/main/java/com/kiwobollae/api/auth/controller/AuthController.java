@@ -3,6 +3,8 @@ package com.kiwobollae.api.auth.controller;
 import com.kiwobollae.api.auth.dto.request.EmailVerificationConfirmRequest;
 import com.kiwobollae.api.auth.dto.request.EmailVerificationRequest;
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
@@ -119,12 +121,30 @@ public class AuthController {
 		return ResponseEntity.ok(ApiResponse.success(authService.getMe(userId)));
 	}
 
+	@Operation(summary = "비밀번호 재확인", description = "프로필 수정 등 민감한 작업 전 현재 비밀번호를 재확인합니다. 아무것도 변경하지 않습니다.")
+	@PostMapping("/me/password/verify")
+	public ResponseEntity<ApiResponse<Void>> verifyPassword(
+			@AuthenticationPrincipal Long userId,
+			@Valid @RequestBody PasswordVerifyRequest request) {
+		authService.verifyPassword(userId, request);
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
 	@Operation(summary = "내 프로필 수정", description = "닉네임/이름/전화번호를 수정합니다. 이메일·권한·상태는 여기서 변경할 수 없습니다.")
 	@PatchMapping("/me")
 	public ResponseEntity<ApiResponse<UserResponse>> updateMe(
 			@AuthenticationPrincipal Long userId,
 			@Valid @RequestBody UserUpdateRequest request) {
 		return ResponseEntity.ok(ApiResponse.success(authService.updateProfile(userId, request)));
+	}
+
+	@Operation(summary = "비밀번호 변경", description = "현재 비밀번호를 확인한 뒤 새 비밀번호로 변경합니다. 소셜 로그인 계정은 사용할 수 없습니다.")
+	@PatchMapping("/me/password")
+	public ResponseEntity<ApiResponse<Void>> changePassword(
+			@AuthenticationPrincipal Long userId,
+			@Valid @RequestBody PasswordChangeRequest request) {
+		authService.changePassword(userId, request);
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
 	}
 
 	private ResponseEntity<ApiResponse<LoginResponse>> withRefreshCookie(TokenIssueResult result) {

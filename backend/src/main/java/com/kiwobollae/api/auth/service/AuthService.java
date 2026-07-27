@@ -1,6 +1,8 @@
 package com.kiwobollae.api.auth.service;
 
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
@@ -118,6 +120,31 @@ public class AuthService {
 
 		user.updateProfile(request.nickname(), request.name(), request.phoneNumber());
 		return UserResponse.from(user);
+	}
+
+	public void verifyPassword(Long userId, PasswordVerifyRequest request) {
+		User user = findById(userId);
+
+		if (user.getPassword() == null) {
+			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
+		}
+		if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+			throw new BusinessException(ErrorCode.AUTH_CURRENT_PASSWORD_MISMATCH);
+		}
+	}
+
+	@Transactional
+	public void changePassword(Long userId, PasswordChangeRequest request) {
+		User user = findById(userId);
+
+		if (user.getPassword() == null) {
+			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
+		}
+		if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+			throw new BusinessException(ErrorCode.AUTH_CURRENT_PASSWORD_MISMATCH);
+		}
+
+		user.changePassword(passwordEncoder.encode(request.newPassword()));
 	}
 
 	private User findById(Long userId) {

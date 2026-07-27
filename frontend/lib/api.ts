@@ -168,3 +168,19 @@ export function updateProfile(payload: ProfileUpdatePayload): Promise<UserRespon
     body: JSON.stringify(payload),
   });
 }
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return request<void>('/api/v1/auth/me/password', {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+// Re-checks the current password without changing anything — used to gate access
+// to sensitive actions like editing the profile.
+export function verifyPassword(password: string): Promise<void> {
+  return request<void>('/api/v1/auth/me/password/verify', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+}

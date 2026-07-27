@@ -1,9 +1,11 @@
 "use client";
 import {
   ApiError,
+  changePassword,
   checkNicknameAvailability,
   getMe,
   updateProfile,
+  verifyPassword,
   type UserResponse,
 } from "@/lib/api";
 import { ADDRESSES } from "@/lib/data";
@@ -30,6 +32,7 @@ const PHONE_MAX_LENGTH = 11;
 const PHONE_REGEX = /^(010|011)\d{7,8}$/;
 const NICKNAME_MAX_LENGTH = 12;
 const NAME_MAX_LENGTH = 10;
+const PASSWORD_MIN_LENGTH = 8;
 
 export default function MyPage() {
   const { showToast } = useUI();
@@ -68,6 +71,12 @@ export default function MyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 프로필 수정/비밀번호 변경 폼은 항상 둘 중 하나만 열려 있어야 한다.
+  const [passwordGateOpen, setPasswordGateOpen] = useState(false);
+  const [gatePassword, setGatePassword] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [verifyingGate, setVerifyingGate] = useState(false);
+
   const openEdit = () => {
     if (!profile) return;
     setNickname(profile.nickname);
@@ -78,7 +87,33 @@ export default function MyPage() {
     setNicknameChecked(true);
     setNicknameAvailable(true);
     setNicknameError("");
+    setChangingPassword(false);
     setEditing(true);
+  };
+
+  const openPasswordGate = () => {
+    if (!profile) return;
+    setGatePassword("");
+    setGateError("");
+    setChangingPassword(false);
+    setEditing(false);
+    setPasswordGateOpen(true);
+  };
+
+  const submitPasswordGate = async () => {
+    setGateError("");
+    setVerifyingGate(true);
+    try {
+      await verifyPassword(gatePassword);
+      setPasswordGateOpen(false);
+      openEdit();
+    } catch (e) {
+      setGateError(
+        e instanceof ApiError ? e.message : "비밀번호 확인에 실패했어요.",
+      );
+    } finally {
+      setVerifyingGate(false);
+    }
   };
 
   const changeNickname = (value: string) => {
@@ -162,6 +197,47 @@ export default function MyPage() {
     }
   };
 
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
+  const openPasswordChange = () => {
+    setCurrentPassword("");
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setPasswordError("");
+    setEditing(false);
+    setPasswordGateOpen(false);
+    setChangingPassword(true);
+  };
+
+  const submitPasswordChange = async () => {
+    setPasswordError("");
+    if (newPassword.length < PASSWORD_MIN_LENGTH) {
+      setPasswordError(`새 비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 해요.`);
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setPasswordError("새 비밀번호가 서로 달라요.");
+      return;
+    }
+    setPasswordSubmitting(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setChangingPassword(false);
+      showToast("비밀번호를 변경했어요.");
+    } catch (e) {
+      setPasswordError(
+        e instanceof ApiError ? e.message : "비밀번호 변경에 실패했어요. 다시 시도해 주세요.",
+      );
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  };
+
   const setDefault = (id: number) => {
     setAddresses(addresses.map((a) => ({ ...a, isDefault: a.id === id })));
     showToast("기본 배송지를 변경했어요.");
@@ -192,15 +268,65 @@ export default function MyPage() {
           </div>
           <div className="mt-1 text-sm text-sub">{displayEmail}</div>
         </div>
-        <button
-          type="button"
-          onClick={openEdit}
-          disabled={!profile}
-          className="cursor-pointer rounded-[11px] bg-brand-soft px-[18px] py-[11px] font-bold text-brand-dark disabled:opacity-60"
-        >
-          프로필 수정
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={openPasswordGate}
+            disabled={!profile}
+            className="cursor-pointer rounded-[11px] bg-brand-soft px-[18px] py-[11px] font-bold text-brand-dark disabled:opacity-60"
+          >
+            프로필 수정
+          </button>
+          <button
+            type="button"
+            onClick={openPasswordChange}
+            disabled={!profile}
+            className="cursor-pointer rounded-[11px] border-[1.5px] border-line bg-white px-[18px] py-[11px] font-bold text-sub disabled:opacity-60"
+          >
+            비밀번호 변경
+          </button>
+        </div>
       </div>
+
+      {passwordGateOpen && (
+        <div className="mb-6 rounded-[20px] bg-white p-6 shadow-card">
+          <h2 className="mb-4 text-lg font-extrabold">본인 확인</h2>
+          <p className="mb-3.5 text-sm text-sub">
+            프로필 수정을 위해 현재 비밀번호를 입력해 주세요.
+          </p>
+          <label className={LABEL}>비밀번호</label>
+          <input
+            type="password"
+            value={gatePassword}
+            onChange={(e) => setGatePassword(e.target.value)}
+            className={`${FIELD} mt-1.5`}
+          />
+
+          {gateError && (
+            <div className="mt-3.5 rounded-[11px] bg-danger-soft px-[13px] py-[11px] text-[13px] font-semibold text-danger">
+              {gateError}
+            </div>
+          )}
+
+          <div className="mt-5 flex gap-2.5">
+            <button
+              type="button"
+              disabled={verifyingGate || !gatePassword}
+              onClick={submitPasswordGate}
+              className="flex-1 cursor-pointer rounded-xl bg-brand p-3 font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60"
+            >
+              확인
+            </button>
+            <button
+              type="button"
+              onClick={() => setPasswordGateOpen(false)}
+              className="flex-1 cursor-pointer rounded-xl border-[1.5px] border-line bg-white p-3 font-bold text-sub"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="mb-6 rounded-[20px] bg-white p-6 shadow-card">
@@ -287,6 +413,67 @@ export default function MyPage() {
             <button
               type="button"
               onClick={() => setEditing(false)}
+              className="flex-1 cursor-pointer rounded-xl border-[1.5px] border-line bg-white p-3 font-bold text-sub"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {changingPassword && (
+        <div className="mb-6 rounded-[20px] bg-white p-6 shadow-card">
+          <h2 className="mb-4 text-lg font-extrabold">비밀번호 변경</h2>
+          <div className="flex flex-col gap-3.5">
+            <div>
+              <label className={LABEL}>현재 비밀번호</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className={`${FIELD} mt-1.5`}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>새 비밀번호</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder={`${PASSWORD_MIN_LENGTH}자 이상`}
+                className={`${FIELD} mt-1.5`}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>새 비밀번호 확인</label>
+              <input
+                type="password"
+                value={newPasswordConfirm}
+                onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                placeholder="다시 입력"
+                className={`${FIELD} mt-1.5`}
+              />
+            </div>
+          </div>
+
+          {passwordError && (
+            <div className="mt-3.5 rounded-[11px] bg-danger-soft px-[13px] py-[11px] text-[13px] font-semibold text-danger">
+              {passwordError}
+            </div>
+          )}
+
+          <div className="mt-5 flex gap-2.5">
+            <button
+              type="button"
+              disabled={passwordSubmitting}
+              onClick={submitPasswordChange}
+              className="flex-1 cursor-pointer rounded-xl bg-brand p-3 font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60"
+            >
+              변경
+            </button>
+            <button
+              type="button"
+              onClick={() => setChangingPassword(false)}
               className="flex-1 cursor-pointer rounded-xl border-[1.5px] border-line bg-white p-3 font-bold text-sub"
             >
               취소

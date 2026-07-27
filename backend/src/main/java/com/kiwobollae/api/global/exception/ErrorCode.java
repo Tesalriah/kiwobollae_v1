@@ -37,6 +37,10 @@ public enum ErrorCode {
 	AUTH_VERIFICATION_CODE_INVALID(HttpStatus.BAD_REQUEST, "인증코드가 올바르지 않습니다."),
 	AUTH_VERIFICATION_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "인증코드가 만료되었습니다. 다시 요청해 주세요."),
 	AUTH_VERIFICATION_TOO_MANY_ATTEMPTS(HttpStatus.TOO_MANY_REQUESTS, "인증 시도 횟수를 초과했습니다. 코드를 다시 요청해 주세요."),
+	// 401이 아니라 400인 이유: 이 값은 액세스 토큰 상태와 무관한 순수 입력값 검증 실패라, 401로 두면
+	// 프론트의 "액세스 토큰 만료 → 자동 재발급 후 재시도" 인터셉터가 이를 세션 만료로 오인해 로그아웃시킨다.
+	AUTH_CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
+	AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD(HttpStatus.CONFLICT, "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다."),
 
 	// --- Domain codes (docs/error-codes.md §5) ---
 	PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),
