@@ -4,6 +4,7 @@ import com.kiwobollae.api.auth.dto.request.LoginRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
+import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
 import com.kiwobollae.api.auth.entity.RefreshToken;
@@ -34,6 +35,10 @@ public class AuthService {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final TokenHasher tokenHasher;
 	private final EmailVerificationService emailVerificationService;
+
+	public NicknameAvailabilityResponse checkNicknameAvailability(String nickname) {
+		return new NicknameAvailabilityResponse(!userRepository.existsByNickname(nickname));
+	}
 
 	@Transactional
 	public UserResponse signup(SignupRequest request) {

@@ -133,6 +133,16 @@ export function confirmEmailVerification(email: string, code: string): Promise<v
   });
 }
 
+export interface NicknameAvailabilityResponse {
+  available: boolean;
+}
+
+export function checkNicknameAvailability(nickname: string): Promise<NicknameAvailabilityResponse> {
+  return request<NicknameAvailabilityResponse>(
+    `/api/v1/auth/signup/nickname-check?nickname=${encodeURIComponent(nickname)}`,
+  );
+}
+
 // Silent refresh: relies solely on the httpOnly refresh_token cookie, no body needed.
 export function reissue(): Promise<AccessTokenResponse> {
   return request<AccessTokenResponse>('/api/v1/auth/reissue', { method: 'POST' });

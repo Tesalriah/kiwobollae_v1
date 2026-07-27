@@ -8,6 +8,7 @@ import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.AccessTokenResponse;
 import com.kiwobollae.api.auth.dto.response.LoginResponse;
+import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
 import com.kiwobollae.api.auth.service.AuthService;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "인증", description = "회원가입, 로그인 등 인증 관련 API")
@@ -63,6 +65,13 @@ public class AuthController {
 	public ResponseEntity<ApiResponse<Void>> confirmEmailVerification(@Valid @RequestBody EmailVerificationConfirmRequest request) {
 		emailVerificationService.confirmCode(request.email(), request.code());
 		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "닉네임 중복 확인", description = "회원가입/프로필 수정 전 닉네임 사용 가능 여부를 확인합니다.")
+	@GetMapping("/signup/nickname-check")
+	public ResponseEntity<ApiResponse<NicknameAvailabilityResponse>> checkNicknameAvailability(
+			@RequestParam String nickname) {
+		return ResponseEntity.ok(ApiResponse.success(authService.checkNicknameAvailability(nickname)));
 	}
 
 	@Operation(summary = "회원가입", description = "이메일 인증이 완료된 이메일로 새 계정을 생성합니다.")

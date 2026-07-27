@@ -10,9 +10,10 @@ import jakarta.validation.constraints.Size;
  */
 public record UserUpdateRequest(
 		@Pattern(regexp = ".*\\S.*", message = "닉네임은 공백만으로 이루어질 수 없습니다.")
-		@Size(max = 50) String nickname,
+		@Size(max = 12) String nickname,
 		@Pattern(regexp = ".*\\S.*", message = "이름은 공백만으로 이루어질 수 없습니다.")
-		@Size(max = 50) String name,
-		@Size(max = 20) String phoneNumber
+		@Size(max = 10) String name,
+		@Pattern(regexp = "^(010|011)\\d{7,8}$", message = "전화번호는 010 또는 011로 시작하는 숫자 10~11자리여야 합니다.")
+		String phoneNumber
 ) {
 }

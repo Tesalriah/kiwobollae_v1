@@ -1,24 +1,35 @@
-'use client';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useUI } from '@/lib/ui';
-import { useStore } from '@/lib/store';
-import { ADDRESSES } from '@/lib/data';
-import { getMe, updateProfile, ApiError, type UserResponse } from '@/lib/api';
-import { levelTitle } from '@/lib/levels';
+"use client";
+import {
+  ApiError,
+  checkNicknameAvailability,
+  getMe,
+  updateProfile,
+  type UserResponse,
+} from "@/lib/api";
+import { ADDRESSES } from "@/lib/data";
+import { levelTitle } from "@/lib/levels";
+import { useStore } from "@/lib/store";
+import { useUI } from "@/lib/ui";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const LINKS = [
-  { icon: 'receipt_long', label: '주문 내역', href: '/my/orders' },
-  { icon: 'redeem', label: '교환 내역', href: '/my/exchanges' },
-  { icon: 'paid', label: '포인트 내역', href: '/my/points' },
-  { icon: 'style', label: '내 카드', href: '/my/cards' },
-  { icon: 'menu_book', label: '내 일지', href: '/journals' },
-  { icon: 'mail', label: '1:1 문의', href: '/my/inquiries' },
+  { icon: "receipt_long", label: "주문 내역", href: "/my/orders" },
+  { icon: "redeem", label: "교환 내역", href: "/my/exchanges" },
+  { icon: "paid", label: "포인트 내역", href: "/my/points" },
+  { icon: "style", label: "내 카드", href: "/my/cards" },
+  { icon: "menu_book", label: "내 일지", href: "/journals" },
+  { icon: "mail", label: "1:1 문의", href: "/my/inquiries" },
 ];
 
-const FIELD = 'w-full rounded-xl border-[1.5px] border-line px-3.5 py-[11px] text-[15px] outline-none';
-const LABEL = 'text-[13px] font-bold text-[#6d7a68]';
+const FIELD =
+  "w-full rounded-xl border-[1.5px] border-line px-3.5 py-[11px] text-[15px] outline-none";
+const LABEL = "text-[13px] font-bold text-[#6d7a68]";
+const PHONE_MAX_LENGTH = 11;
+const PHONE_REGEX = /^(010|011)\d{7,8}$/;
+const NICKNAME_MAX_LENGTH = 12;
+const NAME_MAX_LENGTH = 10;
 
 export default function MyPage() {
   const { showToast } = useUI();
@@ -29,22 +40,30 @@ export default function MyPage() {
   const [profile, setProfile] = useState<UserResponse | null>(null);
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [name, setName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [formError, setFormError] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [originalNickname, setOriginalNickname] = useState("");
+  const [name, setName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  // 닉네임 중복확인 상태 — 프로필에 원래 있던 닉네임 그대로면 확인이 필요 없다.
+  const [nicknameChecked, setNicknameChecked] = useState(true);
+  const [nicknameAvailable, setNicknameAvailable] = useState(true);
+  const [checkingNickname, setCheckingNickname] = useState(false);
+  const [nicknameError, setNicknameError] = useState("");
 
   useEffect(() => {
     getMe()
       .then((res) => {
         setProfile(res);
         setNickname(res.nickname);
+        setOriginalNickname(res.nickname);
         setName(res.name);
-        setPhoneNumber(res.phoneNumber ?? '');
+        setPhoneNumber(res.phoneNumber ?? "");
       })
       .catch(() => {
         // 헤더의 캐시된 정보로도 화면은 그릴 수 있으니 토스트 정도만 남김
-        showToast('프로필을 불러오지 못했어요.', 'err');
+        showToast("프로필을 불러오지 못했어요.", "err");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -52,24 +71,92 @@ export default function MyPage() {
   const openEdit = () => {
     if (!profile) return;
     setNickname(profile.nickname);
+    setOriginalNickname(profile.nickname);
     setName(profile.name);
-    setPhoneNumber(profile.phoneNumber ?? '');
-    setFormError('');
+    setPhoneNumber(profile.phoneNumber ?? "");
+    setFormError("");
+    setNicknameChecked(true);
+    setNicknameAvailable(true);
+    setNicknameError("");
     setEditing(true);
   };
 
+  const changeNickname = (value: string) => {
+    const next = value.slice(0, NICKNAME_MAX_LENGTH);
+    setNickname(next);
+    if (next === originalNickname) {
+      setNicknameChecked(true);
+      setNicknameAvailable(true);
+      setNicknameError("");
+    } else {
+      setNicknameChecked(false);
+      setNicknameAvailable(false);
+      setNicknameError("");
+    }
+  };
+
+  const checkNickname = async () => {
+    setNicknameError("");
+    setCheckingNickname(true);
+    try {
+      const res = await checkNicknameAvailability(nickname);
+      setNicknameChecked(true);
+      setNicknameAvailable(res.available);
+      if (!res.available) {
+        setNicknameError("이미 사용 중인 닉네임이에요.");
+      }
+    } catch (e) {
+      setNicknameChecked(false);
+      setNicknameError(
+        e instanceof ApiError ? e.message : "중복확인에 실패했어요.",
+      );
+    } finally {
+      setCheckingNickname(false);
+    }
+  };
+
+  const changePhoneNumber = (value: string) => {
+    setPhoneNumber(value.replace(/\D/g, "").slice(0, PHONE_MAX_LENGTH));
+  };
+
   const submitEdit = async () => {
-    setFormError('');
+    setFormError("");
+    if (nickname !== originalNickname && (!nicknameChecked || !nicknameAvailable)) {
+      setFormError("닉네임 중복확인을 먼저 완료해 주세요.");
+      return;
+    }
+    if (phoneNumber && !PHONE_REGEX.test(phoneNumber)) {
+      setFormError("전화번호는 010 또는 011로 시작하는 숫자 10~11자리여야 해요.");
+      return;
+    }
     setSubmitting(true);
     try {
-      const updated = await updateProfile({ nickname, name, phoneNumber: phoneNumber || undefined });
+      const updated = await updateProfile({
+        nickname,
+        name,
+        phoneNumber: phoneNumber || undefined,
+      });
       setProfile(updated);
       // 헤더/네브바가 참조하는 store의 nickname·level도 같이 갱신
-      set((s) => (s.user ? { user: { ...s.user, nickname: updated.nickname, level: updated.level } } : {}));
+      set((s) =>
+        s.user
+          ? {
+              user: {
+                ...s.user,
+                nickname: updated.nickname,
+                level: updated.level,
+              },
+            }
+          : {},
+      );
       setEditing(false);
-      showToast('프로필을 수정했어요.');
+      showToast("프로필을 수정했어요.");
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : '프로필 수정에 실패했어요. 다시 시도해 주세요.');
+      setFormError(
+        e instanceof ApiError
+          ? e.message
+          : "프로필 수정에 실패했어요. 다시 시도해 주세요.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -77,18 +164,18 @@ export default function MyPage() {
 
   const setDefault = (id: number) => {
     setAddresses(addresses.map((a) => ({ ...a, isDefault: a.id === id })));
-    showToast('기본 배송지를 변경했어요.');
+    showToast("기본 배송지를 변경했어요.");
   };
 
   const doLogout = () => {
     logout();
-    showToast('로그아웃했어요.');
-    router.push('/');
+    showToast("로그아웃했어요.");
+    router.push("/");
   };
 
-  const displayNickname = profile?.nickname ?? state.user?.nickname ?? '게스트';
+  const displayNickname = profile?.nickname ?? state.user?.nickname ?? "게스트";
   const displayLevel = profile?.level ?? state.user?.level ?? 1;
-  const displayEmail = profile?.email ?? state.user?.email ?? '';
+  const displayEmail = profile?.email ?? state.user?.email ?? "";
 
   return (
     <div className="container max-w-[960px]">
@@ -99,7 +186,9 @@ export default function MyPage() {
         <div className="min-w-[180px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xl font-extrabold">{displayNickname}</span>
-            <span className="whitespace-nowrap rounded-full bg-brand-soft px-[11px] py-1 text-xs font-extrabold text-brand-dark">Lv.{displayLevel} {levelTitle(displayLevel)}</span>
+            <span className="whitespace-nowrap rounded-full bg-brand-soft px-[11px] py-1 text-xs font-extrabold text-brand-dark">
+              Lv.{displayLevel} {levelTitle(displayLevel)}
+            </span>
           </div>
           <div className="mt-1 text-sm text-sub">{displayEmail}</div>
         </div>
@@ -119,15 +208,61 @@ export default function MyPage() {
           <div className="flex flex-col gap-3.5">
             <div>
               <label className={LABEL}>닉네임</label>
-              <input value={nickname} onChange={(e) => setNickname(e.target.value)} className={`${FIELD} mt-1.5`} />
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  value={nickname}
+                  onChange={(e) => changeNickname(e.target.value)}
+                  maxLength={NICKNAME_MAX_LENGTH}
+                  className={FIELD}
+                />
+                <button
+                  type="button"
+                  disabled={
+                    !nickname ||
+                    nickname === originalNickname ||
+                    checkingNickname
+                  }
+                  onClick={checkNickname}
+                  className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl border-[1.5px] border-line bg-white text-[13px] font-bold text-[#5b6a54] transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark disabled:cursor-default disabled:opacity-60"
+                >
+                  {nickname !== originalNickname && nicknameChecked && nicknameAvailable
+                    ? "사용가능 ✅"
+                    : "중복확인"}
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span
+                  className={`text-xs ${nicknameError ? "font-semibold text-danger" : "text-[#a9b3a0]"}`}
+                >
+                  {nicknameError ||
+                    (nickname !== originalNickname && nicknameChecked && nicknameAvailable
+                      ? "사용할 수 있는 닉네임이에요."
+                      : "")}
+                </span>
+                <span className="text-xs text-[#a9b3a0]">
+                  {nickname.length}/{NICKNAME_MAX_LENGTH}
+                </span>
+              </div>
             </div>
             <div>
               <label className={LABEL}>이름</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} className={`${FIELD} mt-1.5`} />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={NAME_MAX_LENGTH}
+                className={`${FIELD} mt-1.5`}
+              />
             </div>
             <div>
               <label className={LABEL}>전화번호</label>
-              <input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="010-0000-0000" className={`${FIELD} mt-1.5`} />
+              <input
+                value={phoneNumber}
+                onChange={(e) => changePhoneNumber(e.target.value)}
+                maxLength={PHONE_MAX_LENGTH}
+                inputMode="numeric"
+                placeholder="01012345678"
+                className={`${FIELD} mt-1.5`}
+              />
             </div>
           </div>
 
@@ -140,7 +275,10 @@ export default function MyPage() {
           <div className="mt-5 flex gap-2.5">
             <button
               type="button"
-              disabled={submitting}
+              disabled={
+                submitting ||
+                (nickname !== originalNickname && (!nicknameChecked || !nicknameAvailable))
+              }
               onClick={submitEdit}
               className="flex-1 cursor-pointer rounded-xl bg-brand p-3 font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60"
             >
@@ -160,8 +298,16 @@ export default function MyPage() {
       <h2 className="mb-3.5 text-lg font-extrabold">바로가기</h2>
       <div className="mb-7 grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
         {LINKS.map((l) => (
-          <Link key={l.label} href={l.href} className="rounded-2xl bg-white px-[18px] py-5 text-ink shadow-card hover:text-ink">
-            <div><span className="material-symbols-outlined text-[28px] text-brand">{l.icon}</span></div>
+          <Link
+            key={l.label}
+            href={l.href}
+            className="rounded-2xl bg-white px-[18px] py-5 text-ink shadow-card hover:text-ink"
+          >
+            <div>
+              <span className="material-symbols-outlined text-[28px] text-brand">
+                {l.icon}
+              </span>
+            </div>
             <div className="mt-2 font-extrabold">{l.label}</div>
           </Link>
         ))}
@@ -170,23 +316,44 @@ export default function MyPage() {
       <h2 className="mb-3.5 text-lg font-extrabold">배송지 관리</h2>
       <div className="flex flex-col gap-3">
         {addresses.map((a) => (
-          <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-[14px] bg-white px-[18px] py-4 shadow-card">
+          <div
+            key={a.id}
+            className="flex flex-wrap items-center gap-3 rounded-[14px] bg-white px-[18px] py-4 shadow-card"
+          >
             <div className="min-w-[180px] flex-1">
               <div className="flex items-center gap-2 font-bold">
                 {a.name}
-                {a.isDefault && <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] text-brand-dark">기본</span>}
+                {a.isDefault && (
+                  <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] text-brand-dark">
+                    기본
+                  </span>
+                )}
               </div>
-              <div className="mt-1 text-[13.5px] text-sub">{a.phone} · {a.addr}</div>
+              <div className="mt-1 text-[13.5px] text-sub">
+                {a.phone} · {a.addr}
+              </div>
             </div>
             {!a.isDefault && (
-              <button type="button" onClick={() => setDefault(a.id)} className="cursor-pointer rounded-[10px] border-[1.5px] border-[#cfe0b6] bg-white px-3.5 py-2 text-[13px] font-bold text-brand-dark">
+              <button
+                type="button"
+                onClick={() => setDefault(a.id)}
+                className="cursor-pointer rounded-[10px] border-[1.5px] border-[#cfe0b6] bg-white px-3.5 py-2 text-[13px] font-bold text-brand-dark"
+              >
                 기본으로
               </button>
             )}
-            <button type="button" className="cursor-pointer rounded-[10px] border-[1.5px] border-line bg-white px-3 py-2 text-[13px] font-bold text-sub">수정</button>
+            <button
+              type="button"
+              className="cursor-pointer rounded-[10px] border-[1.5px] border-line bg-white px-3 py-2 text-[13px] font-bold text-sub"
+            >
+              수정
+            </button>
           </div>
         ))}
-        <button type="button" className="cursor-pointer rounded-[14px] border-[1.5px] border-dashed border-[#cfe0b6] bg-white p-3.5 text-center font-bold text-brand-dark">
+        <button
+          type="button"
+          className="cursor-pointer rounded-[14px] border-[1.5px] border-dashed border-[#cfe0b6] bg-white p-3.5 text-center font-bold text-brand-dark"
+        >
           + 새 배송지 추가
         </button>
       </div>
