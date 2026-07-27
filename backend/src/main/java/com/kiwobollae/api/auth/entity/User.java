@@ -64,6 +64,10 @@ public class User extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Integer level;
 
+	@Builder.Default
+	@Column(nullable = false)
+	private Long experience = 0L;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 50)
 	private UserStatus status;
@@ -73,4 +77,16 @@ public class User extends BaseTimeEntity {
 
 	@Column(name = "withdrawn_at")
 	private LocalDateTime withdrawnAt;
+
+	public void updateProfile(String nickname, String name, String phoneNumber) {
+		if (nickname != null) {
+			this.nickname = nickname;
+		}
+		if (name != null) {
+			this.name = name;
+		}
+		if (phoneNumber != null) {
+			this.phoneNumber = phoneNumber;
+		}
+	}
 }

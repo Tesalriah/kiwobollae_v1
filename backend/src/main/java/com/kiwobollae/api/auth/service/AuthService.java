@@ -2,6 +2,7 @@ package com.kiwobollae.api.auth.service;
 
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
+import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
@@ -32,6 +33,7 @@ public class AuthService {
 	private final PasswordEncoder passwordEncoder;
 	private final JwtTokenProvider jwtTokenProvider;
 	private final TokenHasher tokenHasher;
+	private final EmailVerificationService emailVerificationService;
 
 	@Transactional
 	public UserResponse signup(SignupRequest request) {
@@ -41,6 +43,7 @@ public class AuthService {
 		if (userRepository.existsByNickname(request.nickname())) {
 			throw new BusinessException(ErrorCode.AUTH_NICKNAME_ALREADY_EXISTS);
 		}
+		emailVerificationService.assertVerified(request.email());
 
 		User user = User.builder()
 				.email(request.email())
@@ -94,6 +97,27 @@ public class AuthService {
 
 		String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole().name());
 		return new AccessReissueResult(accessToken, "Bearer", UserResponse.from(user));
+	}
+
+	public UserResponse getMe(Long userId) {
+		return UserResponse.from(findById(userId));
+	}
+
+	@Transactional
+	public UserResponse updateProfile(Long userId, UserUpdateRequest request) {
+		User user = findById(userId);
+
+		if (request.nickname() != null && userRepository.existsByNicknameAndIdNot(request.nickname(), userId)) {
+			throw new BusinessException(ErrorCode.AUTH_NICKNAME_ALREADY_EXISTS);
+		}
+
+		user.updateProfile(request.nickname(), request.name(), request.phoneNumber());
+		return UserResponse.from(user);
+	}
+
+	private User findById(Long userId) {
+		return userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_RESOURCE_NOT_FOUND, "사용자를 찾을 수 없습니다."));
 	}
 
 	@Transactional

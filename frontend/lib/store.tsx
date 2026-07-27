@@ -37,6 +37,7 @@ export interface CurrentUser {
   email: string;
   nickname: string;
   role: string;
+  level: number;
 }
 
 export interface StoreState {
@@ -119,7 +120,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(async () => {
       try {
         const res = await reissue();
-        const user: CurrentUser = { id: res.user.id, email: res.user.email, nickname: res.user.nickname, role: res.user.role };
+        const user: CurrentUser = {
+          id: res.user.id,
+          email: res.user.email,
+          nickname: res.user.nickname,
+          role: res.user.role,
+          level: res.user.level,
+        };
         setState((s) => ({ ...s, authed: true, accessToken: res.accessToken, user }));
         return res.accessToken;
       } catch {
@@ -161,8 +168,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((accessToken: string, user: CurrentUser) => {
     // Re-pick fields explicitly: callers may pass a full UserResponse (structurally
-    // compatible), but only id/email/nickname/role should ever reach localStorage.
-    const trimmed: CurrentUser = { id: user.id, email: user.email, nickname: user.nickname, role: user.role };
+    // compatible), but only id/email/nickname/role/level should ever reach localStorage.
+    const trimmed: CurrentUser = {
+      id: user.id,
+      email: user.email,
+      nickname: user.nickname,
+      role: user.role,
+      level: user.level,
+    };
     setState((s) => ({ ...s, authed: true, accessToken, user: trimmed }));
   }, []);
   const logout = useCallback(() => {

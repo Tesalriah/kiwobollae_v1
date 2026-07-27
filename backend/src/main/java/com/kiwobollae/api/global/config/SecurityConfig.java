@@ -33,6 +33,9 @@ public class SecurityConfig {
 				.cors(cors -> cors.configurationSource(corsConfigurationSource))
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
+						// More specific than the /auth/** permitAll below: viewing/editing "my"
+						// profile requires a valid access token, unlike signup/login/reissue/logout.
+						.requestMatchers(ApiVersion.V1 + "/auth/me").authenticated()
 						.requestMatchers(ApiVersion.V1 + "/auth/**").permitAll()
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
 						.anyRequest().authenticated()

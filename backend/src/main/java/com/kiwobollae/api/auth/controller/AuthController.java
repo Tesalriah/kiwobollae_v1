@@ -1,13 +1,17 @@
 package com.kiwobollae.api.auth.controller;
 
+import com.kiwobollae.api.auth.dto.request.EmailVerificationConfirmRequest;
+import com.kiwobollae.api.auth.dto.request.EmailVerificationRequest;
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
+import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
 import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.AccessTokenResponse;
 import com.kiwobollae.api.auth.dto.response.LoginResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
 import com.kiwobollae.api.auth.service.AuthService;
+import com.kiwobollae.api.auth.service.EmailVerificationService;
 import com.kiwobollae.api.global.common.ApiResponse;
 import com.kiwobollae.api.global.common.ApiVersion;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +24,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +43,7 @@ public class AuthController {
 	private static final String AUTH_PATH = ApiVersion.V1 + "/auth";
 
 	private final AuthService authService;
+	private final EmailVerificationService emailVerificationService;
 
 	@Value("${app.cookie.secure}")
 	private boolean cookieSecure;
@@ -43,7 +51,21 @@ public class AuthController {
 	@Value("${jwt.refresh-expiration}")
 	private long refreshExpirationMs;
 
-	@Operation(summary = "회원가입", description = "이메일/비밀번호로 새 계정을 생성합니다.")
+	@Operation(summary = "회원가입 이메일 인증코드 발송", description = "입력한 이메일로 6자리 인증코드를 보냅니다. 5분간 유효합니다.")
+	@PostMapping("/signup/email-verification")
+	public ResponseEntity<ApiResponse<Void>> requestEmailVerification(@Valid @RequestBody EmailVerificationRequest request) {
+		emailVerificationService.requestCode(request.email());
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "회원가입 이메일 인증코드 확인", description = "받은 인증코드를 확인합니다. 확인된 이메일은 30분 이내에 회원가입을 완료해야 합니다.")
+	@PostMapping("/signup/email-verification/confirm")
+	public ResponseEntity<ApiResponse<Void>> confirmEmailVerification(@Valid @RequestBody EmailVerificationConfirmRequest request) {
+		emailVerificationService.confirmCode(request.email(), request.code());
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "회원가입", description = "이메일 인증이 완료된 이메일로 새 계정을 생성합니다.")
 	@PostMapping("/signup")
 	public ResponseEntity<ApiResponse<UserResponse>> signup(@Valid @RequestBody SignupRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(authService.signup(request)));
@@ -80,6 +102,20 @@ public class AuthController {
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, expired.toString())
 				.body(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "내 프로필 조회", description = "로그인한 사용자의 프로필 정보를 조회합니다.")
+	@GetMapping("/me")
+	public ResponseEntity<ApiResponse<UserResponse>> getMe(@AuthenticationPrincipal Long userId) {
+		return ResponseEntity.ok(ApiResponse.success(authService.getMe(userId)));
+	}
+
+	@Operation(summary = "내 프로필 수정", description = "닉네임/이름/전화번호를 수정합니다. 이메일·권한·상태는 여기서 변경할 수 없습니다.")
+	@PatchMapping("/me")
+	public ResponseEntity<ApiResponse<UserResponse>> updateMe(
+			@AuthenticationPrincipal Long userId,
+			@Valid @RequestBody UserUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.success(authService.updateProfile(userId, request)));
 	}
 
 	private ResponseEntity<ApiResponse<LoginResponse>> withRefreshCookie(TokenIssueResult result) {

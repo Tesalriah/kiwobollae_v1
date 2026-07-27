@@ -11,10 +11,23 @@ import tools.jackson.databind.ObjectMapper;
 public class FilterConfig {
 
 	@Bean
-	public FilterRegistrationBean<RateLimitFilter> rateLimitFilter(ObjectMapper objectMapper) {
-		FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>(new RateLimitFilter(objectMapper));
+	public FilterRegistrationBean<RateLimitFilter> reissueRateLimitFilter(ObjectMapper objectMapper) {
+		FilterRegistrationBean<RateLimitFilter> registration =
+				new FilterRegistrationBean<>(new RateLimitFilter(objectMapper, 30));
 		registration.addUrlPatterns(ApiVersion.V1 + "/auth/reissue");
-		registration.setName("rateLimitFilter");
+		registration.setName("reissueRateLimitFilter");
+		registration.setOrder(1);
+		return registration;
+	}
+
+	@Bean
+	public FilterRegistrationBean<RateLimitFilter> emailVerificationRateLimitFilter(ObjectMapper objectMapper) {
+		// Much stricter than reissue: sending email costs real money/reputation and is a
+		// common enumeration/spam vector, so cap it well below the generic default.
+		FilterRegistrationBean<RateLimitFilter> registration =
+				new FilterRegistrationBean<>(new RateLimitFilter(objectMapper, 5));
+		registration.addUrlPatterns(ApiVersion.V1 + "/auth/signup/email-verification");
+		registration.setName("emailVerificationRateLimitFilter");
 		registration.setOrder(1);
 		return registration;
 	}

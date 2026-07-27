@@ -46,10 +46,12 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
     credentials: 'include', // send/receive the httpOnly refresh_token cookie
   });
 
-  // Auth endpoints (login/signup/reissue/logout) never go through the refresh-and-retry
-  // flow — a 401 there means "bad credentials" or "no session", not "expired token".
-  const isAuthEndpoint = path.startsWith('/api/v1/auth/');
-  if (res.status === 401 && !isRetry && onUnauthorized && !isAuthEndpoint) {
+  // signup/login/reissue/logout never go through the refresh-and-retry flow — a 401
+  // there means "bad credentials" or "no session", not "expired token". /auth/me is a
+  // regular authenticated endpoint (like any other protected resource), so it's excluded
+  // from this list and does get the retry-after-refresh treatment.
+  const isCredentialEndpoint = ['/api/v1/auth/signup', '/api/v1/auth/login', '/api/v1/auth/reissue', '/api/v1/auth/logout'].includes(path);
+  if (res.status === 401 && !isRetry && onUnauthorized && !isCredentialEndpoint) {
     const newToken = await onUnauthorized();
     if (newToken) {
       return request<T>(path, options, true);
@@ -76,6 +78,7 @@ export interface UserResponse {
   provider: string;
   role: string;
   level: number;
+  experience: number;
   status: string;
   suspendedReason: string | null;
   withdrawnAt: string | null;
@@ -116,6 +119,20 @@ export function signup(payload: SignupPayload): Promise<UserResponse> {
   });
 }
 
+export function requestEmailVerification(email: string): Promise<void> {
+  return request<void>('/api/v1/auth/signup/email-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function confirmEmailVerification(email: string, code: string): Promise<void> {
+  return request<void>('/api/v1/auth/signup/email-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  });
+}
+
 // Silent refresh: relies solely on the httpOnly refresh_token cookie, no body needed.
 export function reissue(): Promise<AccessTokenResponse> {
   return request<AccessTokenResponse>('/api/v1/auth/reissue', { method: 'POST' });
@@ -123,4 +140,21 @@ export function reissue(): Promise<AccessTokenResponse> {
 
 export function logout(): Promise<void> {
   return request<void>('/api/v1/auth/logout', { method: 'POST' });
+}
+
+export interface ProfileUpdatePayload {
+  nickname?: string;
+  name?: string;
+  phoneNumber?: string;
+}
+
+export function getMe(): Promise<UserResponse> {
+  return request<UserResponse>('/api/v1/auth/me');
+}
+
+export function updateProfile(payload: ProfileUpdatePayload): Promise<UserResponse> {
+  return request<UserResponse>('/api/v1/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }

@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUI } from '@/lib/ui';
 import { useStore } from '@/lib/store';
-import { login as apiLogin, signup as apiSignup, ApiError } from '@/lib/api';
+import {
+  login as apiLogin,
+  signup as apiSignup,
+  requestEmailVerification,
+  confirmEmailVerification,
+  ApiError,
+} from '@/lib/api';
 
 const FIELD = 'w-full rounded-xl border-[1.5px] border-line px-3.5 py-[13px] text-[15px] outline-none';
 const LABEL = 'text-[13px] font-bold text-[#6d7a68]';
@@ -33,6 +39,49 @@ export default function AuthPanel({ initialView = 'login' }: AuthPanelProps) {
   const [signupPhone, setSignupPhone] = useState('');
   const [signupError, setSignupError] = useState('');
 
+  // 이메일 인증 단계 상태 — 이메일을 바꾸면 인증은 다시 받아야 하므로 emailVerified를 리셋한다.
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+
+  const changeSignupEmail = (value: string) => {
+    setSignupEmail(value);
+    setVerificationSent(false);
+    setVerificationCode('');
+    setEmailVerified(false);
+    setVerificationError('');
+  };
+
+  const sendVerificationCode = async () => {
+    setVerificationError('');
+    setVerifying(true);
+    try {
+      await requestEmailVerification(signupEmail);
+      setVerificationSent(true);
+      showToast('인증코드를 보냈어요. 5분 이내에 입력해 주세요 📮');
+    } catch (e) {
+      setVerificationError(e instanceof ApiError ? e.message : '인증코드 발송에 실패했어요.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const confirmVerificationCode = async () => {
+    setVerificationError('');
+    setVerifying(true);
+    try {
+      await confirmEmailVerification(signupEmail, verificationCode);
+      setEmailVerified(true);
+      showToast('이메일 인증을 완료했어요 ✅');
+    } catch (e) {
+      setVerificationError(e instanceof ApiError ? e.message : '인증코드 확인에 실패했어요.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const afterAuth = (msg: string) => {
     showToast(msg);
     setTimeout(() => router.push('/'), 1000);
@@ -60,6 +109,10 @@ export default function AuthPanel({ initialView = 'login' }: AuthPanelProps) {
 
   const handleSignup = async () => {
     setSignupError('');
+    if (!emailVerified) {
+      setSignupError('이메일 인증을 먼저 완료해 주세요.');
+      return;
+    }
     if (signupPassword !== signupPasswordConfirm) {
       setSignupError('비밀번호가 서로 달라요.');
       return;
@@ -177,12 +230,46 @@ export default function AuthPanel({ initialView = 'login' }: AuthPanelProps) {
             <div className="flex flex-col gap-3.5">
               <div>
                 <label className={LABEL}>이메일</label>
-                <input
-                  value={signupEmail}
-                  onChange={(e) => setSignupEmail(e.target.value)}
-                  placeholder="hello@example.com"
-                  className={`${FIELD} mt-1.5`}
-                />
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    value={signupEmail}
+                    onChange={(e) => changeSignupEmail(e.target.value)}
+                    disabled={emailVerified}
+                    placeholder="hello@example.com"
+                    className={`${FIELD} disabled:bg-[#f5f6f2] disabled:text-sub`}
+                  />
+                  <button
+                    type="button"
+                    disabled={!signupEmail || verifying || emailVerified}
+                    onClick={sendVerificationCode}
+                    className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl border-[1.5px] border-line bg-white text-[13px] font-bold text-[#5b6a54] transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark disabled:cursor-default disabled:opacity-60"
+                  >
+                    {emailVerified ? '인증완료 ✅' : verificationSent ? '재전송' : '인증코드 받기'}
+                  </button>
+                </div>
+
+                {verificationSent && !emailVerified && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="6자리 인증코드"
+                      inputMode="numeric"
+                      className={`${FIELD}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={verifying || verificationCode.length !== 6}
+                      onClick={confirmVerificationCode}
+                      className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl bg-brand-soft text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white disabled:cursor-default disabled:opacity-60"
+                    >
+                      확인
+                    </button>
+                  </div>
+                )}
+                {verificationError && (
+                  <div className="mt-1.5 text-xs font-semibold text-danger">{verificationError}</div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -237,7 +324,7 @@ export default function AuthPanel({ initialView = 'login' }: AuthPanelProps) {
               </div>
             )}
 
-            <button type="button" disabled={submitting} onClick={handleSignup} className="mt-6 w-full cursor-pointer rounded-xl bg-brand p-3.5 text-base font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60">
+            <button type="button" disabled={submitting || !emailVerified} onClick={handleSignup} className="mt-6 w-full cursor-pointer rounded-xl bg-brand p-3.5 text-base font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60">
               가입하고 시작하기
             </button>
             <p className="mt-5 text-center text-sm text-sub">

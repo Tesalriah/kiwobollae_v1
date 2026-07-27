@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useStore, fmt, NotificationType } from '@/lib/store';
 import { useUI } from '@/lib/ui';
+import { levelTitle } from '@/lib/levels';
 import Skeleton from './Skeleton';
 
 const NOTIF_ICON: Record<NotificationType, string> = {
@@ -189,13 +190,18 @@ export default function Navbar() {
                   onClick={() => setProfileOpen((v) => !v)}
                   className="flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#AED581] to-[#7CB342] font-extrabold text-white ring-0 ring-brand-dark/40 transition-shadow duration-150 hover:ring-4"
                 >
-                  초
+                  {state.user?.nickname?.charAt(0) ?? '?'}
                 </button>
                 {profileOpen && (
                   <div className="absolute right-0 top-[44px] w-56 overflow-hidden rounded-2xl border border-line bg-white shadow-[0_14px_40px_-12px_rgba(85,139,47,.35)]">
                     <div className="border-b border-[#F2ECDD] px-4 py-3.5">
-                      <div className="text-[15px] font-bold">초록님</div>
-                      <div className="mt-0.5 text-[12.5px] text-faint">Lv.3 새싹 정원사</div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-[15px] font-bold">{state.user?.nickname ?? '게스트'}님</span>
+                        <span className="whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-extrabold text-brand-dark">
+                          Lv.{state.user?.level ?? 1} {levelTitle(state.user?.level ?? 1)}
+                        </span>
+                      </div>
+                      <div className="mt-1 truncate text-[12.5px] text-faint">{state.user?.email}</div>
                     </div>
                     <Link href="/my" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors duration-150 hover:bg-brand-soft hover:text-ink">
                       마이페이지

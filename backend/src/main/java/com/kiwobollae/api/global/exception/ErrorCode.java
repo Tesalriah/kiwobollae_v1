@@ -33,6 +33,10 @@ public enum ErrorCode {
 	AUTH_ACCOUNT_NOT_ACTIVE(HttpStatus.FORBIDDEN, "계정이 활성 상태가 아닙니다."),
 	AUTH_EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
 	AUTH_NICKNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
+	AUTH_EMAIL_NOT_VERIFIED(HttpStatus.CONFLICT, "이메일 인증을 먼저 완료해 주세요."),
+	AUTH_VERIFICATION_CODE_INVALID(HttpStatus.BAD_REQUEST, "인증코드가 올바르지 않습니다."),
+	AUTH_VERIFICATION_CODE_EXPIRED(HttpStatus.BAD_REQUEST, "인증코드가 만료되었습니다. 다시 요청해 주세요."),
+	AUTH_VERIFICATION_TOO_MANY_ATTEMPTS(HttpStatus.TOO_MANY_REQUESTS, "인증 시도 횟수를 초과했습니다. 코드를 다시 요청해 주세요."),
 
 	// --- Domain codes (docs/error-codes.md §5) ---
 	PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),
