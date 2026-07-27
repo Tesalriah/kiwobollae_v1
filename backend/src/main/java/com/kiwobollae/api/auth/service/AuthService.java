@@ -108,12 +108,12 @@ public class AuthService {
 	}
 
 	public UserResponse getMe(Long userId) {
-		return UserResponse.from(findById(userId));
+		return UserResponse.from(findActiveUser(userId));
 	}
 
 	@Transactional
 	public UserResponse updateProfile(Long userId, UserUpdateRequest request) {
-		User user = findById(userId);
+		User user = findActiveUser(userId);
 
 		if (request.nickname() != null && userRepository.existsByNicknameAndIdNot(request.nickname(), userId)) {
 			throw new BusinessException(ErrorCode.AUTH_NICKNAME_ALREADY_EXISTS);
@@ -124,7 +124,7 @@ public class AuthService {
 	}
 
 	public void verifyPassword(Long userId, PasswordVerifyRequest request) {
-		User user = findById(userId);
+		User user = findActiveUser(userId);
 
 		if (user.getPassword() == null) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
@@ -136,7 +136,7 @@ public class AuthService {
 
 	@Transactional
 	public void changePassword(Long userId, PasswordChangeRequest request) {
-		User user = findById(userId);
+		User user = findActiveUser(userId);
 
 		if (user.getPassword() == null) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
@@ -150,11 +150,10 @@ public class AuthService {
 
 	@Transactional
 	public void withdraw(Long userId, WithdrawRequest request) {
-		User user = findById(userId);
+		// findActiveUser already rejects a second withdraw (status would be WITHDRAWN,
+		// which is "not active") with the same AUTH_ACCOUNT_NOT_ACTIVE error.
+		User user = findActiveUser(userId);
 
-		if (user.getStatus() == UserStatus.WITHDRAWN) {
-			throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
-		}
 		if (user.getPassword() != null) {
 			// LOCAL accounts must re-confirm with their password; social accounts have
 			// none to check, so a valid access token alone is treated as confirmation.
@@ -173,6 +172,20 @@ public class AuthService {
 	private User findById(Long userId) {
 		return userRepository.findById(userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_RESOURCE_NOT_FOUND, "사용자를 찾을 수 없습니다."));
+	}
+
+	/**
+	 * Same as findById, but also rejects SUSPENDED/RESTRICTED/WITHDRAWN accounts —
+	 * an access token can outlive an admin action taken mid-session (up to its
+	 * expiry), so every /auth/me/** action re-checks status instead of trusting
+	 * "the token was valid at issue time" the way a stateless JWT alone would.
+	 */
+	private User findActiveUser(Long userId) {
+		User user = findById(userId);
+		if (user.getStatus() != UserStatus.ACTIVE) {
+			throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
+		}
+		return user;
 	}
 
 	@Transactional

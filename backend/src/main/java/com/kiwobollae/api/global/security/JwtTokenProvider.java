@@ -1,6 +1,7 @@
 package com.kiwobollae.api.global.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -61,12 +62,27 @@ public class JwtTokenProvider {
 	}
 
 	public boolean validateToken(String token) {
+		return checkToken(token) == TokenStatus.VALID;
+	}
+
+	/**
+	 * Same parsing as {@link #validateToken}, but distinguishes "expired" from
+	 * "malformed/tampered/wrong signature" so callers (JwtAuthenticationFilter) can
+	 * surface AUTH_TOKEN_EXPIRED vs AUTH_TOKEN_INVALID instead of one generic 401.
+	 */
+	public TokenStatus checkToken(String token) {
 		try {
 			parseClaims(token);
-			return true;
+			return TokenStatus.VALID;
+		} catch (ExpiredJwtException e) {
+			return TokenStatus.EXPIRED;
 		} catch (JwtException | IllegalArgumentException e) {
-			return false;
+			return TokenStatus.INVALID;
 		}
+	}
+
+	public enum TokenStatus {
+		VALID, EXPIRED, INVALID
 	}
 
 	public Long getUserId(String token) {

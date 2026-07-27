@@ -2,6 +2,7 @@ package com.kiwobollae.api.auth.service;
 
 import com.kiwobollae.api.auth.entity.EmailVerification;
 import com.kiwobollae.api.auth.repository.EmailVerificationRepository;
+import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.global.security.TokenHasher;
@@ -23,12 +24,17 @@ public class EmailVerificationService {
 	private static final int VERIFIED_VALIDITY_MINUTES = 30;
 
 	private final EmailVerificationRepository emailVerificationRepository;
+	private final UserRepository userRepository;
 	private final EmailSender emailSender;
 	private final TokenHasher tokenHasher;
 	private final SecureRandom random = new SecureRandom();
 
 	@Transactional
 	public void requestCode(String email) {
+		if (userRepository.existsByEmail(email)) {
+			throw new BusinessException(ErrorCode.AUTH_EMAIL_ALREADY_EXISTS);
+		}
+
 		String code = generateCode();
 		EmailVerification verification = EmailVerification.builder()
 				.email(email)
