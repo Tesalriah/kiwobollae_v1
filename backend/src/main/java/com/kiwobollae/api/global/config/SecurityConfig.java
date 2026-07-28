@@ -7,7 +7,9 @@ import com.kiwobollae.api.global.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,6 +20,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -38,7 +41,12 @@ public class SecurityConfig {
 						// access token, unlike signup/login/reissue/logout.
 						.requestMatchers(ApiVersion.V1 + "/auth/me/**").authenticated()
 						.requestMatchers(ApiVersion.V1 + "/auth/me").authenticated()
+						.requestMatchers(ApiVersion.V1 + "/admin/**").hasRole("ADMIN")
 						.requestMatchers(ApiVersion.V1 + "/auth/**").permitAll()
+						.requestMatchers(HttpMethod.GET, ApiVersion.V1 + "/product").permitAll()
+						.requestMatchers(HttpMethod.GET, ApiVersion.V1 + "/product/**").permitAll()
+						.requestMatchers(HttpMethod.GET, ApiVersion.V1 + "/card").permitAll()
+						.requestMatchers(HttpMethod.GET, ApiVersion.V1 + "/card/**").permitAll()
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
 						.anyRequest().authenticated()
 				)

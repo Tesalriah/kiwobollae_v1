@@ -37,3 +37,6 @@ app:
       client-id: ${NAVER_CLIENT_ID}
       client-secret: ${NAVER_CLIENT_SECRET}
       redirect-uri: ${NAVER_REDIRECT_URI}
+
+payment:
+  provider: TOSS

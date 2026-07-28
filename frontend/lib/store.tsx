@@ -7,8 +7,9 @@
 // trip. lib/api.ts still keeps its own in-memory copy of the access token
 // (kept in sync via setAccessToken below) purely so it can attach the
 // Authorization header without importing the store.
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { reissue, logout as apiLogout, setAccessToken, setUnauthorizedHandler } from '@/lib/api';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
+import { ApiError, AUTH_EXPIRED_EVENT, reissue, logout as apiLogout, setAccessToken, setUnauthorizedHandler } from '@/lib/api';
+import { getWallet } from '@/features/point/api';
 
 const KEY = 'kwb_store_v1';
 
@@ -60,6 +61,10 @@ export type StorePatch = Partial<StoreState> | ((s: StoreState) => Partial<Store
 export interface StoreContextValue {
   state: StoreState;
   hydrated: boolean;
+  authExpired: boolean;
+  walletLoading: boolean;
+  walletLoaded: boolean;
+  walletError: string | null;
   set: (patch: StorePatch) => void;
   spend: (amount: number) => void;
   creditFree: (amount: number) => void;
@@ -71,13 +76,16 @@ export interface StoreContextValue {
   markAllNotifsRead: () => void;
   login: (accessToken: string, user: CurrentUser) => void;
   logout: () => void;
+  refreshWallet: () => Promise<void>;
 }
+
+const EMPTY_WALLET: Wallet = { free: 0, paid: 0 };
 
 const DEFAULTS: StoreState = {
   authed: false,
   accessToken: null,
   user: null,
-  wallet: { free: 1240, paid: 3000 },
+  wallet: EMPTY_WALLET,
   rewardedToday: false,
   wroteToday: false,
   growingCount: 3,
@@ -99,11 +107,31 @@ const StoreCtx = createContext<StoreContextValue | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoreState>(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
+  const [authExpired, setAuthExpired] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletLoaded, setWalletLoaded] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const walletRequestId = useRef(0);
+
+  const clearAuthentication = useCallback((expired: boolean) => {
+    walletRequestId.current += 1;
+    setWalletLoading(false);
+    setWalletLoaded(false);
+    setWalletError(null);
+    setAuthExpired(expired);
+    setState((s) => ({
+      ...s,
+      authed: false,
+      accessToken: null,
+      user: null,
+      wallet: EMPTY_WALLET,
+    }));
+  }, []);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) setState({ ...DEFAULTS, ...JSON.parse(raw) });
+      if (raw) setState({ ...DEFAULTS, ...JSON.parse(raw), wallet: EMPTY_WALLET });
     } catch (e) {}
     setHydrated(true);
   }, []);
@@ -130,17 +158,63 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setState((s) => ({ ...s, authed: true, accessToken: res.accessToken, user }));
         return res.accessToken;
       } catch {
-        setState((s) => ({ ...s, authed: false, accessToken: null, user: null }));
+        // Refresh itself failed — the session is actually over, same as a hard
+        // AUTH_EXPIRED_EVENT below, so route through the same cleanup path.
+        clearAuthentication(true);
         return null;
       }
     });
     return () => setUnauthorizedHandler(null);
-  }, []);
+  }, [clearAuthentication]);
 
   useEffect(() => {
     if (!hydrated) return;
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem(KEY, JSON.stringify({ ...state, wallet: EMPTY_WALLET })); } catch (e) {}
   }, [state, hydrated]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => clearAuthentication(true);
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, [clearAuthentication]);
+
+  const refreshWallet = useCallback(async () => {
+    const requestId = ++walletRequestId.current;
+    if (!state.authed || !state.accessToken) {
+      setState((s) => ({ ...s, wallet: EMPTY_WALLET }));
+      setWalletLoading(false);
+      setWalletLoaded(false);
+      setWalletError(null);
+      return;
+    }
+
+    setWalletLoading(true);
+    setWalletError(null);
+    try {
+      const wallet = await getWallet(state.accessToken);
+      if (requestId !== walletRequestId.current) return;
+      setState((s) => ({
+        ...s,
+        wallet: { paid: wallet.paidPoint, free: wallet.freePoint },
+      }));
+      setWalletLoaded(true);
+    } catch (error) {
+      if (requestId !== walletRequestId.current) return;
+      setWalletLoaded(false);
+      setWalletError(
+        error instanceof ApiError
+          ? error.message
+          : '포인트 잔액을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+      );
+    } finally {
+      if (requestId === walletRequestId.current) setWalletLoading(false);
+    }
+  }, [state.accessToken, state.authed]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void refreshWallet();
+  }, [hydrated, refreshWallet]);
 
   const set = useCallback((patch: StorePatch) => {
     setState((s) => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }));
@@ -164,7 +238,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, wallet: { free: s.wallet.free, paid: s.wallet.paid + amount } }));
   }, []);
 
-  const reset = useCallback(() => setState(DEFAULTS), []);
+  const reset = useCallback(() => {
+    walletRequestId.current += 1;
+    setWalletLoading(false);
+    setWalletLoaded(false);
+    setWalletError(null);
+    setAuthExpired(false);
+    setState(DEFAULTS);
+  }, []);
 
   const login = useCallback((accessToken: string, user: CurrentUser) => {
     // Re-pick fields explicitly: callers may pass a full UserResponse (structurally
@@ -176,12 +257,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       role: user.role,
       level: user.level,
     };
-    setState((s) => ({ ...s, authed: true, accessToken, user: trimmed }));
+    walletRequestId.current += 1;
+    setWalletLoading(false);
+    setWalletLoaded(false);
+    setWalletError(null);
+    setAuthExpired(false);
+    setState((s) => ({ ...s, authed: true, accessToken, user: trimmed, wallet: EMPTY_WALLET }));
   }, []);
+
   const logout = useCallback(() => {
     apiLogout().catch(() => {}); // best-effort: revoke the refresh token server-side too
-    setState((s) => ({ ...s, authed: false, accessToken: null, user: null }));
-  }, []);
+    clearAuthentication(false);
+  }, [clearAuthentication]);
 
   const markNotifRead = useCallback((id: number) => {
     setState((s) => ({ ...s, notifications: s.notifications.map((n) => (n.id === id ? { ...n, unread: false } : n)) }));
@@ -196,7 +283,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <StoreCtx.Provider
-      value={{ state, hydrated, set, spend, creditFree, creditPaid, reset, balance, unreadCount, markNotifRead, markAllNotifsRead, login, logout }}
+      value={{
+        state,
+        hydrated,
+        authExpired,
+        walletLoading,
+        walletLoaded,
+        walletError,
+        set,
+        spend,
+        creditFree,
+        creditPaid,
+        reset,
+        balance,
+        unreadCount,
+        markNotifRead,
+        markAllNotifsRead,
+        login,
+        logout,
+        refreshWallet,
+      }}
     >
       {children}
     </StoreCtx.Provider>

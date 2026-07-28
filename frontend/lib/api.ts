@@ -1,4 +1,5 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+export const AUTH_EXPIRED_EVENT = 'kwb:auth-expired';
 
 // Backend error codes/messages: see docs/error-codes.md. The server already returns
 // user-facing Korean messages, so no client-side translation table is needed here.
@@ -14,7 +15,9 @@ export class ApiError extends Error {
 }
 
 // The access token lives only in memory (never localStorage) — the store sets this
-// whenever it changes so plain fetch calls elsewhere can still attach it.
+// whenever it changes so plain fetch calls elsewhere can still attach it. Feature
+// modules that already hold their own token (see features/point/api.ts etc.) can
+// instead pass `accessToken` explicitly via ApiRequestOptions to override this.
 let currentAccessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
@@ -31,17 +34,26 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   onUnauthorized = handler;
 }
 
-async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
+interface ApiRequestOptions extends RequestInit {
+  accessToken?: string | null;
+}
+
+export async function request<T>(path: string, options: ApiRequestOptions = {}, isRetry = false): Promise<T> {
+  const { accessToken, ...requestOptions } = options;
+  // Explicit accessToken (feature-module style) wins; otherwise fall back to the
+  // store-synced in-memory token so older calls in this file keep working unchanged.
+  const tokenForThisCall = accessToken !== undefined ? accessToken : currentAccessToken;
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> | undefined),
+    ...(requestOptions.headers as Record<string, string> | undefined),
   };
-  if (currentAccessToken && !headers.Authorization) {
-    headers.Authorization = `Bearer ${currentAccessToken}`;
+  if (tokenForThisCall && !headers.Authorization) {
+    headers.Authorization = `Bearer ${tokenForThisCall}`;
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+    ...requestOptions,
     headers,
     credentials: 'include', // send/receive the httpOnly refresh_token cookie
   });
@@ -51,7 +63,10 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   // regular authenticated endpoint (like any other protected resource), so it's excluded
   // from this list and does get the retry-after-refresh treatment.
   const isCredentialEndpoint = ['/api/v1/auth/signup', '/api/v1/auth/login', '/api/v1/auth/reissue', '/api/v1/auth/logout'].includes(path);
-  if (res.status === 401 && !isRetry && onUnauthorized && !isCredentialEndpoint) {
+  // Silent-refresh-and-retry only applies to calls using the store-synced token — a
+  // caller that already passed its own accessToken explicitly gets AUTH_EXPIRED_EVENT
+  // below instead, since retrying with a rotated token wouldn't reach it anyway.
+  if (res.status === 401 && !isRetry && onUnauthorized && !isCredentialEndpoint && accessToken === undefined) {
     const newToken = await onUnauthorized();
     if (newToken) {
       return request<T>(path, options, true);
@@ -61,6 +76,9 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   const body = await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && !isCredentialEndpoint && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
     const code = body?.code || 'UNKNOWN_ERROR';
     const message = body?.message || '요청 처리 중 문제가 발생했어요.';
     throw new ApiError(code, message, res.status);

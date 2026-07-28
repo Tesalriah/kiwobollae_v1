@@ -46,7 +46,7 @@ function activeKey(pathname: string) {
 export default function Navbar() {
   const pathname = usePathname() || '/';
   const router = useRouter();
-  const { balance, state, hydrated, reset, logout, unreadCount, markNotifRead, markAllNotifsRead } = useStore();
+  const { balance, state, hydrated, logout, unreadCount, markNotifRead, markAllNotifsRead } = useStore();
   const { showToast } = useUI();
   const active = activeKey(pathname);
   const cartCount = state.cartCount;
@@ -66,8 +66,6 @@ export default function Navbar() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [bellOpen, profileOpen]);
-
-  const doReset = () => { reset(); router.refresh(); };
 
   const openNotif = (n: (typeof state.notifications)[number]) => {
     markNotifRead(n.id);
@@ -115,9 +113,6 @@ export default function Navbar() {
             </>
           ) : state.authed ? (
             <>
-              <button type="button" onClick={doReset} title="데모 데이터 초기화" className="hidden cursor-pointer rounded-[9px] px-2 py-1 text-faint transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark md:block">
-                <span className="material-symbols-outlined text-[19px]">refresh</span>
-              </button>
               {isAdmin && (
                 <Link href="/admin" className="hidden whitespace-nowrap rounded-[10px] bg-ink px-3.5 py-2 text-[15px] font-bold text-white transition-colors duration-150 hover:bg-[#2a332a] hover:text-white md:block">
                   관리자 콘솔
