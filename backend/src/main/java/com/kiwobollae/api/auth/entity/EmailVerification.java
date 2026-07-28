@@ -1,8 +1,11 @@
 package com.kiwobollae.api.auth.entity;
 
+import com.kiwobollae.api.auth.entity.enums.EmailVerificationPurpose;
 import com.kiwobollae.api.global.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
@@ -20,7 +23,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(name = "email_verification", indexes = {
-		@Index(name = "idx_email_verification_email_created_at", columnList = "email, created_at")
+		@Index(name = "idx_email_verification_email_purpose_created_at", columnList = "email, purpose, created_at")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -29,6 +32,12 @@ public class EmailVerification extends BaseEntity {
 
 	@Column(nullable = false, length = 255)
 	private String email;
+
+	// Separates a signup code from a password-reset code for the same email so the
+	// "latest row for this email" lookup can't let one purpose's code confirm the other.
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private EmailVerificationPurpose purpose;
 
 	@Column(name = "code_hash", nullable = false, length = 64)
 	private String codeHash;

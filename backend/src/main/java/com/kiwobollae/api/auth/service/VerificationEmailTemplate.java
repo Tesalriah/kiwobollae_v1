@@ -12,7 +12,15 @@ final class VerificationEmailTemplate {
 	private VerificationEmailTemplate() {
 	}
 
-	static String render(String code, int expirationMinutes) {
+	static String renderSignup(String code, int expirationMinutes) {
+		return render("이메일 인증코드예요", "아래 코드를 회원가입 화면에 입력해 주세요.", code, expirationMinutes);
+	}
+
+	static String renderPasswordReset(String code, int expirationMinutes) {
+		return render("비밀번호 재설정 인증코드예요", "아래 코드를 비밀번호 재설정 화면에 입력해 주세요.", code, expirationMinutes);
+	}
+
+	private static String render(String title, String subtitle, String code, int expirationMinutes) {
 		return """
 				<!DOCTYPE html>
 				<html lang="ko">
@@ -28,8 +36,8 @@ final class VerificationEmailTemplate {
 									</tr>
 									<tr>
 										<td style="padding:8px 32px 0 32px;text-align:center;">
-											<p style="margin:0 0 6px 0;font-size:18px;font-weight:800;color:#3E4A3D;">이메일 인증코드예요</p>
-											<p style="margin:0;font-size:14px;color:#8a9587;">아래 코드를 회원가입 화면에 입력해 주세요.</p>
+											<p style="margin:0 0 6px 0;font-size:18px;font-weight:800;color:#3E4A3D;">%s</p>
+											<p style="margin:0;font-size:14px;color:#8a9587;">%s</p>
 										</td>
 									</tr>
 									<tr>
@@ -56,6 +64,6 @@ final class VerificationEmailTemplate {
 					</table>
 				</body>
 				</html>
-				""".formatted(code, expirationMinutes);
+				""".formatted(title, subtitle, code, expirationMinutes);
 	}
 }

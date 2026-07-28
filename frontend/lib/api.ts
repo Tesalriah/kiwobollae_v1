@@ -133,6 +133,27 @@ export function confirmEmailVerification(email: string, code: string): Promise<v
   });
 }
 
+export function requestPasswordResetVerification(email: string): Promise<void> {
+  return request<void>('/api/v1/auth/password/reset/email-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function confirmPasswordResetVerification(email: string, code: string): Promise<void> {
+  return request<void>('/api/v1/auth/password/reset/email-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  });
+}
+
+export function resetPassword(email: string, newPassword: string): Promise<void> {
+  return request<void>('/api/v1/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ email, newPassword }),
+  });
+}
+
 export interface NicknameAvailabilityResponse {
   available: boolean;
 }

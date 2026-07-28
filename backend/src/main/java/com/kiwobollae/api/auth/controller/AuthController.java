@@ -4,6 +4,7 @@ import com.kiwobollae.api.auth.dto.request.EmailVerificationConfirmRequest;
 import com.kiwobollae.api.auth.dto.request.EmailVerificationRequest;
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordResetRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
@@ -145,6 +146,29 @@ public class AuthController {
 			@AuthenticationPrincipal Long userId,
 			@Valid @RequestBody PasswordChangeRequest request) {
 		authService.changePassword(userId, request);
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "비밀번호 재설정 이메일 인증코드 발송", description = "가입된 이메일로 6자리 인증코드를 보냅니다. 5분간 유효합니다.")
+	@PostMapping("/password/reset/email-verification")
+	public ResponseEntity<ApiResponse<Void>> requestPasswordResetVerification(
+			@Valid @RequestBody EmailVerificationRequest request) {
+		emailVerificationService.requestPasswordResetCode(request.email());
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "비밀번호 재설정 이메일 인증코드 확인", description = "받은 인증코드를 확인합니다. 확인된 이메일은 30분 이내에 비밀번호 재설정을 완료해야 합니다.")
+	@PostMapping("/password/reset/email-verification/confirm")
+	public ResponseEntity<ApiResponse<Void>> confirmPasswordResetVerification(
+			@Valid @RequestBody EmailVerificationConfirmRequest request) {
+		emailVerificationService.confirmPasswordResetCode(request.email(), request.code());
+		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+	}
+
+	@Operation(summary = "비밀번호 재설정", description = "이메일 인증이 완료된 계정의 비밀번호를 새 비밀번호로 변경합니다. 변경 즉시 기존 로그인 세션은 모두 폐기됩니다.")
+	@PostMapping("/password/reset")
+	public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+		authService.resetPassword(request);
 		return ResponseEntity.ok(ApiResponse.<Void>success(null));
 	}
 

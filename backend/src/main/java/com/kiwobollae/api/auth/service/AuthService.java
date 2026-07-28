@@ -2,6 +2,7 @@ package com.kiwobollae.api.auth.service;
 
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
+import com.kiwobollae.api.auth.dto.request.PasswordResetRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
 import com.kiwobollae.api.auth.dto.request.SignupRequest;
 import com.kiwobollae.api.auth.dto.request.UserUpdateRequest;
@@ -146,6 +147,25 @@ public class AuthService {
 		}
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()));
+	}
+
+	@Transactional
+	public void resetPassword(PasswordResetRequest request) {
+		User user = userRepository.findByEmail(request.email())
+				.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_EMAIL_NOT_FOUND));
+
+		if (user.getPassword() == null) {
+			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
+		}
+		emailVerificationService.assertPasswordResetVerified(request.email());
+
+		user.changePassword(passwordEncoder.encode(request.newPassword()));
+
+		// Reset implies the previous password may have been compromised, so every
+		// existing session is force-logged-out the same way withdraw() does.
+		LocalDateTime now = LocalDateTime.now();
+		refreshTokenRepository.findAllByUser_IdAndRevokedAtIsNull(user.getId())
+				.forEach(token -> token.revoke(now));
 	}
 
 	@Transactional

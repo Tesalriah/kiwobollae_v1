@@ -5,7 +5,10 @@ import {
   signup as apiSignup,
   checkNicknameAvailability,
   confirmEmailVerification,
+  confirmPasswordResetVerification,
   requestEmailVerification,
+  requestPasswordResetVerification,
+  resetPassword as apiResetPassword,
 } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
@@ -32,12 +35,23 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
   const router = useRouter();
   const { showToast } = useUI();
   const { login } = useStore();
-  const [view, setView] = useState(initialView);
+  const [view, setView] = useState<"login" | "signup" | "reset">(initialView);
   const [submitting, setSubmitting] = useState(false);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // 비밀번호 찾기 단계 상태 — 이메일을 바꾸면 인증은 다시 받아야 하므로 resetVerified를 리셋한다.
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetVerificationSent, setResetVerificationSent] = useState(false);
+  const [resetCode, setResetCode] = useState("");
+  const [resetVerified, setResetVerified] = useState(false);
+  const [resetVerifying, setResetVerifying] = useState(false);
+  const [resetVerificationError, setResetVerificationError] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetNewPasswordConfirm, setResetNewPasswordConfirm] = useState("");
+  const [resetError, setResetError] = useState("");
 
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
@@ -128,6 +142,82 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
       );
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const changeResetEmail = (value: string) => {
+    setResetEmail(value);
+    setResetVerificationSent(false);
+    setResetCode("");
+    setResetVerified(false);
+    setResetVerificationError("");
+  };
+
+  const resetToLoginView = () => {
+    setView("login");
+    setResetEmail("");
+    setResetVerificationSent(false);
+    setResetCode("");
+    setResetVerified(false);
+    setResetVerificationError("");
+    setResetNewPassword("");
+    setResetNewPasswordConfirm("");
+    setResetError("");
+  };
+
+  const sendResetVerificationCode = async () => {
+    setResetVerificationError("");
+    setResetVerifying(true);
+    try {
+      await requestPasswordResetVerification(resetEmail);
+      setResetVerificationSent(true);
+      showToast("인증코드를 보냈어요. 5분 이내에 입력해 주세요 📮");
+    } catch (e) {
+      setResetVerificationError(
+        e instanceof ApiError ? e.message : "인증코드 발송에 실패했어요.",
+      );
+    } finally {
+      setResetVerifying(false);
+    }
+  };
+
+  const confirmResetVerificationCode = async () => {
+    setResetVerificationError("");
+    setResetVerifying(true);
+    try {
+      await confirmPasswordResetVerification(resetEmail, resetCode);
+      setResetVerified(true);
+      showToast("이메일 인증을 완료했어요 ✅");
+    } catch (e) {
+      setResetVerificationError(
+        e instanceof ApiError ? e.message : "인증코드 확인에 실패했어요.",
+      );
+    } finally {
+      setResetVerifying(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetError("");
+    if (!resetVerified) {
+      setResetError("이메일 인증을 먼저 완료해 주세요.");
+      return;
+    }
+    if (resetNewPassword !== resetNewPasswordConfirm) {
+      setResetError("비밀번호가 서로 달라요.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiResetPassword(resetEmail, resetNewPassword);
+      showToast("비밀번호를 변경했어요. 새 비밀번호로 로그인해 주세요 🌿");
+      resetToLoginView();
+    } catch (e) {
+      setResetError(
+        e instanceof ApiError ? e.message : "비밀번호 재설정에 실패했어요.",
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -238,11 +328,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
               <div className="mb-4 text-right">
                 <button
                   type="button"
-                  onClick={() =>
-                    showToast(
-                      "비밀번호 찾기는 준비 중이에요. 조금만 기다려 주세요 🌱",
-                    )
-                  }
+                  onClick={() => setView("reset")}
                   className="cursor-pointer text-xs text-[#a9b3a0]"
                 >
                   비밀번호 찾기
@@ -509,6 +595,132 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
                 className="cursor-pointer font-bold text-brand-dark"
               >
                 로그인
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {view === "reset" && (
+        <div className="flex flex-1 items-start justify-center px-5 pb-[60px] pt-2.5">
+          <div className={`${CARD} max-w-[400px]`}>
+            <h2 className="mb-1 text-2xl font-extrabold">비밀번호 찾기 🔑</h2>
+            <p className="mb-6 text-sm text-sub">
+              가입한 이메일로 인증코드를 보내드릴게요.
+            </p>
+
+            <div className="flex flex-col gap-3.5">
+              <div>
+                <label className={LABEL}>이메일</label>
+                <div className="mt-1.5 flex gap-2">
+                  <input
+                    value={resetEmail}
+                    onChange={(e) => changeResetEmail(e.target.value)}
+                    disabled={resetVerified}
+                    placeholder="hello@example.com"
+                    className={`${FIELD} disabled:bg-[#f5f6f2] disabled:text-sub`}
+                  />
+                  <button
+                    type="button"
+                    disabled={!resetEmail || resetVerifying || resetVerified}
+                    onClick={sendResetVerificationCode}
+                    className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl border-[1.5px] border-line bg-white text-[13px] font-bold text-[#5b6a54] transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark disabled:cursor-default disabled:opacity-60"
+                  >
+                    {resetVerified
+                      ? "인증완료 ✅"
+                      : resetVerificationSent
+                        ? "재전송"
+                        : "인증코드 받기"}
+                  </button>
+                </div>
+
+                {resetVerificationSent && !resetVerified && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={resetCode}
+                      onChange={(e) =>
+                        setResetCode(
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        )
+                      }
+                      placeholder="6자리 인증코드"
+                      inputMode="numeric"
+                      className={`${FIELD}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={resetVerifying || resetCode.length !== 6}
+                      onClick={confirmResetVerificationCode}
+                      className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl bg-brand-soft text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white disabled:cursor-default disabled:opacity-60"
+                    >
+                      확인
+                    </button>
+                  </div>
+                )}
+                {resetVerificationError && (
+                  <div className="mt-1.5 text-xs font-semibold text-danger">
+                    {resetVerificationError}
+                  </div>
+                )}
+              </div>
+
+              {resetVerified && (
+                <>
+                  <div>
+                    <label className={LABEL}>새 비밀번호</label>
+                    <input
+                      type="password"
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      placeholder="8자 이상"
+                      className={`${FIELD} mt-1.5`}
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL}>새 비밀번호 확인</label>
+                    <input
+                      type="password"
+                      value={resetNewPasswordConfirm}
+                      onChange={(e) =>
+                        setResetNewPasswordConfirm(e.target.value)
+                      }
+                      placeholder="다시 입력"
+                      className={`${FIELD} mt-1.5`}
+                    />
+                  </div>
+                  <div className="-mt-1.5 text-xs text-[#a9b3a0]">
+                    영문과 숫자를 포함해 8자 이상으로 만들어 주세요.
+                  </div>
+                </>
+              )}
+            </div>
+
+            {resetError && (
+              <div className="mt-4 rounded-[11px] bg-danger-soft px-[13px] py-[11px] text-[13px] font-semibold text-danger">
+                {resetError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={
+                submitting ||
+                !resetVerified ||
+                !resetNewPassword ||
+                !resetNewPasswordConfirm
+              }
+              onClick={handleResetPassword}
+              className="mt-6 w-full cursor-pointer rounded-xl bg-brand p-3.5 text-base font-bold text-white transition-colors duration-150 hover:bg-brand-dark disabled:opacity-60"
+            >
+              비밀번호 변경하기
+            </button>
+            <p className="mt-5 text-center text-sm text-sub">
+              <button
+                type="button"
+                onClick={resetToLoginView}
+                className="cursor-pointer font-bold text-brand-dark"
+              >
+                로그인으로 돌아가기
               </button>
             </p>
           </div>
