@@ -42,6 +42,9 @@ public enum ErrorCode {
 	AUTH_CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호가 일치하지 않습니다."),
 	AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD(HttpStatus.CONFLICT, "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다."),
 	AUTH_EMAIL_NOT_FOUND(HttpStatus.NOT_FOUND, "가입된 계정을 찾을 수 없습니다."),
+	AUTH_OAUTH_PROVIDER_UNSUPPORTED(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인 provider입니다."),
+	AUTH_OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인 인증에 실패했습니다."),
+	AUTH_OAUTH_EMAIL_REQUIRED(HttpStatus.CONFLICT, "이메일 제공에 동의해야 소셜 로그인을 사용할 수 있습니다."),
 
 	// --- Domain codes (docs/error-codes.md §5) ---
 	PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),

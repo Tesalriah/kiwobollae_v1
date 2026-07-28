@@ -10,6 +10,7 @@ import {
   requestPasswordResetVerification,
   resetPassword as apiResetPassword,
 } from "@/lib/api";
+import { startOAuthLogin } from "@/lib/oauth";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import Link from "next/link";
@@ -296,8 +297,6 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
     }
   };
 
-  const notReady = () =>
-    showToast("소셜 로그인은 아직 준비 중이에요. 조금만 기다려 주세요 🌱");
 
   const content = (
     <>
@@ -358,21 +357,21 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
 
             <button
               type="button"
-              onClick={notReady}
+              onClick={() => startOAuthLogin("google")}
               className="mb-2.5 w-full cursor-pointer rounded-xl border-[1.5px] border-[#e3e5df] bg-white p-[13px] font-bold text-[#3c4043] transition-colors duration-150 hover:bg-[#f5f6f2]"
             >
               Google로 계속하기
             </button>
             <button
               type="button"
-              onClick={notReady}
+              onClick={() => startOAuthLogin("kakao")}
               className="mb-2.5 w-full cursor-pointer rounded-xl bg-[#FEE500] p-[13px] font-bold text-[#3c1e1e] transition-colors duration-150 hover:brightness-95"
             >
               카카오로 계속하기
             </button>
             <button
               type="button"
-              onClick={notReady}
+              onClick={() => startOAuthLogin("naver")}
               className="w-full cursor-pointer rounded-xl bg-[#03C75A] p-[13px] font-extrabold text-white transition-colors duration-150 hover:brightness-95"
             >
               네이버로 계속하기

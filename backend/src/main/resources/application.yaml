@@ -48,3 +48,18 @@ app:
     password: ${MAIL_PASSWORD:}
     smtp-auth: ${MAIL_SMTP_AUTH:true}
     starttls: ${MAIL_STARTTLS:true}
+  oauth:
+    # 각 provider 콘솔에서 발급받은 값. 비어 있으면 해당 provider로 로그인 시도 시 provider가
+    # 요청을 거부해 AUTH_OAUTH_AUTHENTICATION_FAILED로 이어진다(기동 자체는 막지 않음).
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:3000/oauth/callback/google}
+    kakao:
+      client-id: ${KAKAO_CLIENT_ID:}
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+      redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:3000/oauth/callback/kakao}
+    naver:
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
+      redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:3000/oauth/callback/naver}

@@ -95,6 +95,12 @@ export default function MyPage() {
 
   const openPasswordGate = () => {
     if (!profile) return;
+    // 소셜 로그인 계정은 비밀번호 자체가 없어서 이 확인 절차를 통과할 방법이 없다.
+    // 이미 유효한 로그인 세션(액세스 토큰)이 본인 확인을 대신하므로 게이트를 건너뛴다.
+    if (profile.provider !== "LOCAL") {
+      openEdit();
+      return;
+    }
     setGatePassword("");
     setGateError("");
     setChangingPassword(false);
@@ -327,14 +333,16 @@ export default function MyPage() {
           >
             프로필 수정
           </button>
-          <button
-            type="button"
-            onClick={openPasswordChange}
-            disabled={!profile}
-            className="cursor-pointer rounded-[11px] border-[1.5px] border-line bg-white px-[18px] py-[11px] font-bold text-sub disabled:opacity-60"
-          >
-            비밀번호 변경
-          </button>
+          {profile?.provider === "LOCAL" && (
+            <button
+              type="button"
+              onClick={openPasswordChange}
+              disabled={!profile}
+              className="cursor-pointer rounded-[11px] border-[1.5px] border-line bg-white px-[18px] py-[11px] font-bold text-sub disabled:opacity-60"
+            >
+              비밀번호 변경
+            </button>
+          )}
         </div>
       </div>
 

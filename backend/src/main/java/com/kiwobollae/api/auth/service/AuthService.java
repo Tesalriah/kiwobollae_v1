@@ -16,13 +16,17 @@ import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.auth.entity.enums.AuthProvider;
 import com.kiwobollae.api.auth.entity.enums.UserRole;
 import com.kiwobollae.api.auth.entity.enums.UserStatus;
+import com.kiwobollae.api.auth.oauth.OAuthClient;
+import com.kiwobollae.api.auth.oauth.OAuthUserInfo;
 import com.kiwobollae.api.auth.repository.RefreshTokenRepository;
 import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.global.security.JwtTokenProvider;
 import com.kiwobollae.api.global.security.TokenHasher;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,6 +43,10 @@ public class AuthService {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final TokenHasher tokenHasher;
 	private final EmailVerificationService emailVerificationService;
+	private final List<OAuthClient> oAuthClients;
+	private final SecureRandom random = new SecureRandom();
+
+	private static final int NICKNAME_MAX_LENGTH = 12;
 
 	public NicknameAvailabilityResponse checkNicknameAvailability(String nickname) {
 		return new NicknameAvailabilityResponse(!userRepository.existsByNickname(nickname));
@@ -82,6 +90,66 @@ public class AuthService {
 		}
 
 		return issueTokens(user);
+	}
+
+	@Transactional
+	public TokenIssueResult oauthLogin(AuthProvider provider, String code, String state) {
+		OAuthClient client = oAuthClients.stream()
+				.filter(c -> c.getProvider() == provider)
+				.findFirst()
+				.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_OAUTH_PROVIDER_UNSUPPORTED));
+
+		OAuthUserInfo userInfo = client.fetchUserInfo(code, state);
+
+		User user = userRepository.findByProviderAndProviderId(provider, userInfo.providerId())
+				.orElseGet(() -> registerOAuthUser(provider, userInfo));
+
+		if (user.getStatus() != UserStatus.ACTIVE) {
+			throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
+		}
+		return issueTokens(user);
+	}
+
+	/**
+	 * First-time social login for this (provider, providerId). If the email is
+	 * already registered under a different account (LOCAL or another provider),
+	 * we refuse rather than silently linking them — merging accounts is a
+	 * product decision the team hasn't made, not something to guess here.
+	 */
+	private User registerOAuthUser(AuthProvider provider, OAuthUserInfo userInfo) {
+		if (userRepository.existsByEmail(userInfo.email())) {
+			throw new BusinessException(ErrorCode.AUTH_EMAIL_ALREADY_EXISTS);
+		}
+
+		String displayName = userInfo.nickname() != null ? userInfo.nickname() : "회원";
+		User user = User.builder()
+				.email(userInfo.email())
+				.password(null)
+				.nickname(generateUniqueNickname(displayName))
+				.name(displayName.length() > 10 ? displayName.substring(0, 10) : displayName)
+				.provider(provider)
+				.providerId(userInfo.providerId())
+				.role(UserRole.USER)
+				.level(1)
+				.status(UserStatus.ACTIVE)
+				.build();
+		return userRepository.save(user);
+	}
+
+	private String generateUniqueNickname(String base) {
+		String trimmed = base.length() > NICKNAME_MAX_LENGTH ? base.substring(0, NICKNAME_MAX_LENGTH) : base;
+		if (!userRepository.existsByNickname(trimmed)) {
+			return trimmed;
+		}
+
+		String prefix = trimmed.length() > 8 ? trimmed.substring(0, 8) : trimmed;
+		for (int attempt = 0; attempt < 20; attempt++) {
+			String candidate = prefix + String.format("%04d", random.nextInt(10_000));
+			if (!userRepository.existsByNickname(candidate)) {
+				return candidate;
+			}
+		}
+		throw new BusinessException(ErrorCode.COMMON_INTERNAL_ERROR, "닉네임 생성에 실패했습니다. 다시 시도해 주세요.");
 	}
 
 	public AccessReissueResult reissue(String rawRefreshToken) {

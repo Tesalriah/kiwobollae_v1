@@ -164,6 +164,13 @@ export function checkNicknameAvailability(nickname: string): Promise<NicknameAva
   );
 }
 
+export function oauthLogin(provider: string, code: string, state?: string): Promise<LoginResponse> {
+  return request<LoginResponse>(`/api/v1/auth/oauth/${provider}`, {
+    method: 'POST',
+    body: JSON.stringify({ code, state: state || null }),
+  });
+}
+
 // Silent refresh: relies solely on the httpOnly refresh_token cookie, no body needed.
 export function reissue(): Promise<AccessTokenResponse> {
   return request<AccessTokenResponse>('/api/v1/auth/reissue', { method: 'POST' });

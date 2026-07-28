@@ -3,6 +3,7 @@ package com.kiwobollae.api.auth.controller;
 import com.kiwobollae.api.auth.dto.request.EmailVerificationConfirmRequest;
 import com.kiwobollae.api.auth.dto.request.EmailVerificationRequest;
 import com.kiwobollae.api.auth.dto.request.LoginRequest;
+import com.kiwobollae.api.auth.dto.request.OAuthLoginRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordChangeRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordResetRequest;
 import com.kiwobollae.api.auth.dto.request.PasswordVerifyRequest;
@@ -15,10 +16,13 @@ import com.kiwobollae.api.auth.dto.response.LoginResponse;
 import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
+import com.kiwobollae.api.auth.entity.enums.AuthProvider;
 import com.kiwobollae.api.auth.service.AuthService;
 import com.kiwobollae.api.auth.service.EmailVerificationService;
 import com.kiwobollae.api.global.common.ApiResponse;
 import com.kiwobollae.api.global.common.ApiVersion;
+import com.kiwobollae.api.global.exception.BusinessException;
+import com.kiwobollae.api.global.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,6 +37,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -89,6 +94,27 @@ public class AuthController {
 	public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
 		TokenIssueResult result = authService.login(request);
 		return withRefreshCookie(result);
+	}
+
+	@Operation(summary = "소셜 로그인", description = "provider 인가 코드를 검증해 기존 계정을 조회하고, 없으면 자동 회원가입 후 토큰을 발급합니다. provider: google/kakao/naver")
+	@PostMapping("/oauth/{provider}")
+	public ResponseEntity<ApiResponse<LoginResponse>> oauthLogin(
+			@PathVariable String provider,
+			@Valid @RequestBody OAuthLoginRequest request) {
+		TokenIssueResult result = authService.oauthLogin(parseOAuthProvider(provider), request.code(), request.state());
+		return withRefreshCookie(result);
+	}
+
+	private AuthProvider parseOAuthProvider(String provider) {
+		try {
+			AuthProvider parsed = AuthProvider.valueOf(provider.toUpperCase());
+			if (parsed == AuthProvider.LOCAL) {
+				throw new BusinessException(ErrorCode.AUTH_OAUTH_PROVIDER_UNSUPPORTED);
+			}
+			return parsed;
+		} catch (IllegalArgumentException e) {
+			throw new BusinessException(ErrorCode.AUTH_OAUTH_PROVIDER_UNSUPPORTED);
+		}
 	}
 
 	@Operation(summary = "토큰 재발급", description = "httpOnly 쿠키의 리프레시 토큰을 검증하고 액세스 토큰만 새로 발급합니다. 리프레시 토큰 자체는 로그인 시 발급된 것을 만료 전까지 그대로 재사용합니다.")
