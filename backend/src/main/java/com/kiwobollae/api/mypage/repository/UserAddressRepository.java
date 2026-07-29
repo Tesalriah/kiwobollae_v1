@@ -16,6 +16,12 @@ public interface UserAddressRepository extends JpaRepository<UserAddress, Long> 
 
 	long countByUser_Id(Long userId);
 
+	// 기본 배송지가 삭제됐을 때 대신 승격시킬 대상 — 가장 최근에 등록한 배송지를 새 기본으로 삼는다.
+	Optional<UserAddress> findFirstByUser_IdOrderByCreatedAtDesc(Long userId);
+
+	// 기본 배송지를 해제(unmark)했을 때 대신 승격시킬 대상 — 방금 해제한 배송지 자신은 제외한다.
+	Optional<UserAddress> findFirstByUser_IdAndIdNotOrderByCreatedAtDesc(Long userId, Long excludedId);
+
 	// 대상 배송지만 기본으로 남기고 나머지는 전부 해제하는 원자적 단일 UPDATE.
 	// "기존 기본 해제" + "새 기본 지정"을 별도의 두 단계로 나누면 두 요청이 동시에
 	// 들어왔을 때 서로 다른 배송지를 각자 기본으로 지정한 채 커밋되어 기본 배송지가

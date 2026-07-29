@@ -55,6 +55,10 @@ public class UserAddressService {
 			address.markDefault();
 		} else if (address.getIsDefault()) {
 			address.unmarkDefault();
+			// 기본을 해제만 하고 끝내면 배송지가 남아 있는데도 기본이 하나도 없는
+			// 상태가 되므로, 남은 배송지 중 가장 최근 것을 새 기본으로 승격시킨다.
+			userAddressRepository.findFirstByUser_IdAndIdNotOrderByCreatedAtDesc(userId, addressId)
+					.ifPresent(UserAddress::markDefault);
 		}
 		return UserAddressResponse.from(address);
 	}
@@ -62,7 +66,14 @@ public class UserAddressService {
 	@Transactional
 	public void deleteAddress(Long userId, Long addressId) {
 		UserAddress address = findOwnedAddress(userId, addressId);
+		boolean wasDefault = address.getIsDefault();
 		userAddressRepository.delete(address);
+		// 기본 배송지를 지웠다면 남은 배송지 중 가장 최근 것을 새 기본으로 승격시킨다 —
+		// 그러지 않으면 기본 배송지가 아예 없는 상태로 남는다.
+		if (wasDefault) {
+			userAddressRepository.findFirstByUser_IdOrderByCreatedAtDesc(userId)
+					.ifPresent(UserAddress::markDefault);
+		}
 	}
 
 	@Transactional
