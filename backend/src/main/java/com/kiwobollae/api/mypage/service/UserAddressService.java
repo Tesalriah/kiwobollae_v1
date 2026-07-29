@@ -31,10 +31,13 @@ public class UserAddressService {
 
 	@Transactional
 	public UserAddressResponse createAddress(Long userId, UserAddressRequest request) {
+		// 사용자 행에 쓰기 락을 걸어 같은 사용자의 동시 등록 요청을 직렬화한다 — 그러지
+		// 않으면 count 체크와 insert 사이의 TOCTOU 틈으로 5개 제한이 뚫릴 수 있다.
+		User user = userRepository.findByIdForUpdate(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_RESOURCE_NOT_FOUND));
 		if (userAddressRepository.countByUser_Id(userId) >= MAX_ADDRESSES_PER_USER) {
 			throw new BusinessException(ErrorCode.ADDRESS_LIMIT_EXCEEDED);
 		}
-		User user = userRepository.getReferenceById(userId);
 		UserAddress saved = userAddressRepository.save(UserAddress.create(
 				user, request.receiverName(), request.receiverPhone(), request.zipCode(),
 				request.address(), request.addressDetail(), request.isDefault()));
