@@ -47,6 +47,7 @@ public enum ErrorCode {
 	AUTH_OAUTH_PROVIDER_UNSUPPORTED(HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인 provider입니다."),
 	AUTH_OAUTH_AUTHENTICATION_FAILED(HttpStatus.UNAUTHORIZED, "소셜 로그인 인증에 실패했습니다."),
 	AUTH_OAUTH_EMAIL_REQUIRED(HttpStatus.CONFLICT, "이메일 제공에 동의해야 소셜 로그인을 사용할 수 있습니다."),
+	AUTH_RESET_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "비밀번호 재설정 인증이 유효하지 않습니다. 인증을 다시 진행해 주세요."),
 
 	// --- Domain codes (docs/error-codes.md §5) ---
 	PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),

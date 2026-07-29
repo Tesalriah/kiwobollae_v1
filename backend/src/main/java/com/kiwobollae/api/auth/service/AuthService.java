@@ -223,7 +223,7 @@ public class AuthService {
 		if (user.getPassword() == null) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_HAS_NO_PASSWORD);
 		}
-		emailVerificationService.assertPasswordResetVerified(request.email());
+		emailVerificationService.consumePasswordResetToken(request.email(), request.resetToken());
 
 		user.changePassword(passwordEncoder.encode(request.newPassword()));
 

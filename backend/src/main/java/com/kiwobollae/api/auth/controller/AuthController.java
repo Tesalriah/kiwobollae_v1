@@ -14,6 +14,7 @@ import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.AccessTokenResponse;
 import com.kiwobollae.api.auth.dto.response.LoginResponse;
 import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
+import com.kiwobollae.api.auth.dto.response.PasswordResetTicketResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
 import com.kiwobollae.api.auth.entity.enums.AuthProvider;
@@ -183,12 +184,12 @@ public class AuthController {
 		return ResponseEntity.ok(ApiResponse.<Void>success(null));
 	}
 
-	@Operation(summary = "비밀번호 재설정 이메일 인증코드 확인", description = "받은 인증코드를 확인합니다. 확인된 이메일은 30분 이내에 비밀번호 재설정을 완료해야 합니다.")
+	@Operation(summary = "비밀번호 재설정 이메일 인증코드 확인", description = "받은 인증코드를 확인합니다. 응답으로 받은 resetToken은 30분 이내에 /password/reset 호출 시 함께 제출해야 합니다.")
 	@PostMapping("/password/reset/email-verification/confirm")
-	public ResponseEntity<ApiResponse<Void>> confirmPasswordResetVerification(
+	public ResponseEntity<ApiResponse<PasswordResetTicketResponse>> confirmPasswordResetVerification(
 			@Valid @RequestBody EmailVerificationConfirmRequest request) {
-		emailVerificationService.confirmPasswordResetCode(request.email(), request.code());
-		return ResponseEntity.ok(ApiResponse.<Void>success(null));
+		String resetToken = emailVerificationService.confirmPasswordResetCode(request.email(), request.code());
+		return ResponseEntity.ok(ApiResponse.success(new PasswordResetTicketResponse(resetToken)));
 	}
 
 	@Operation(summary = "비밀번호 재설정", description = "이메일 인증이 완료된 계정의 비밀번호를 새 비밀번호로 변경합니다. 변경 즉시 기존 로그인 세션은 모두 폐기됩니다.")

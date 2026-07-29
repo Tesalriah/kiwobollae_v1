@@ -48,6 +48,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
   const [resetVerificationSent, setResetVerificationSent] = useState(false);
   const [resetCode, setResetCode] = useState("");
   const [resetVerified, setResetVerified] = useState(false);
+  const [resetToken, setResetToken] = useState("");
   const [resetVerifying, setResetVerifying] = useState(false);
   const [resetVerificationError, setResetVerificationError] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
@@ -151,6 +152,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
     setResetVerificationSent(false);
     setResetCode("");
     setResetVerified(false);
+    setResetToken("");
     setResetVerificationError("");
   };
 
@@ -160,6 +162,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
     setResetVerificationSent(false);
     setResetCode("");
     setResetVerified(false);
+    setResetToken("");
     setResetVerificationError("");
     setResetNewPassword("");
     setResetNewPasswordConfirm("");
@@ -186,7 +189,8 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
     setResetVerificationError("");
     setResetVerifying(true);
     try {
-      await confirmPasswordResetVerification(resetEmail, resetCode);
+      const { resetToken: token } = await confirmPasswordResetVerification(resetEmail, resetCode);
+      setResetToken(token);
       setResetVerified(true);
       showToast("이메일 인증을 완료했어요 ✅");
     } catch (e) {
@@ -200,7 +204,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
 
   const handleResetPassword = async () => {
     setResetError("");
-    if (!resetVerified) {
+    if (!resetVerified || !resetToken) {
       setResetError("이메일 인증을 먼저 완료해 주세요.");
       return;
     }
@@ -210,7 +214,7 @@ export default function AuthPanel({ initialView = "login" }: AuthPanelProps) {
     }
     setSubmitting(true);
     try {
-      await apiResetPassword(resetEmail, resetNewPassword);
+      await apiResetPassword(resetEmail, resetNewPassword, resetToken);
       showToast("비밀번호를 변경했어요. 새 비밀번호로 로그인해 주세요 🌿");
       resetToLoginView();
     } catch (e) {

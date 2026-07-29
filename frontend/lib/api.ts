@@ -158,17 +158,24 @@ export function requestPasswordResetVerification(email: string): Promise<void> {
   });
 }
 
-export function confirmPasswordResetVerification(email: string, code: string): Promise<void> {
-  return request<void>('/api/v1/auth/password/reset/email-verification/confirm', {
+export interface PasswordResetTicketResponse {
+  resetToken: string;
+}
+
+// Returned resetToken must be echoed back into resetPassword() below — the
+// server binds this single-use ticket to the confirm-code call so a reset
+// can't be completed by anyone other than whoever verified the code.
+export function confirmPasswordResetVerification(email: string, code: string): Promise<PasswordResetTicketResponse> {
+  return request<PasswordResetTicketResponse>('/api/v1/auth/password/reset/email-verification/confirm', {
     method: 'POST',
     body: JSON.stringify({ email, code }),
   });
 }
 
-export function resetPassword(email: string, newPassword: string): Promise<void> {
+export function resetPassword(email: string, newPassword: string, resetToken: string): Promise<void> {
   return request<void>('/api/v1/auth/password/reset', {
     method: 'POST',
-    body: JSON.stringify({ email, newPassword }),
+    body: JSON.stringify({ email, newPassword, resetToken }),
   });
 }
 

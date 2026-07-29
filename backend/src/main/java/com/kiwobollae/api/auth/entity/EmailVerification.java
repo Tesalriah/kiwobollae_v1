@@ -55,6 +55,13 @@ public class EmailVerification extends BaseEntity {
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
 
+	// Single-use ticket issued only for PASSWORD_RESET purpose once the code is
+	// confirmed, so resetPassword() can prove the caller is the same actor who
+	// completed the email verification step — not just "someone verified this
+	// email within the validity window".
+	@Column(name = "reset_token_hash", length = 64)
+	private String resetTokenHash;
+
 	public boolean isExpired() {
 		return expiresAt.isBefore(LocalDateTime.now());
 	}
@@ -69,5 +76,17 @@ public class EmailVerification extends BaseEntity {
 
 	public void recordFailedAttempt() {
 		this.attempts += 1;
+	}
+
+	public void issueResetTokenHash(String hash) {
+		this.resetTokenHash = hash;
+	}
+
+	public boolean matchesResetTokenHash(String hash) {
+		return resetTokenHash != null && resetTokenHash.equals(hash);
+	}
+
+	public void consumeResetToken() {
+		this.resetTokenHash = null;
 	}
 }
