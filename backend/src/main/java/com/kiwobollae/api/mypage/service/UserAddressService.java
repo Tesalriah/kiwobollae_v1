@@ -1,12 +1,76 @@
 package com.kiwobollae.api.mypage.service;
 
+import com.kiwobollae.api.auth.entity.User;
+import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.global.exception.BusinessException;
+import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.mypage.dto.request.UserAddressRequest;
+import com.kiwobollae.api.mypage.dto.response.UserAddressResponse;
+import com.kiwobollae.api.mypage.entity.UserAddress;
 import com.kiwobollae.api.mypage.repository.UserAddressRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserAddressService {
 
 	private final UserAddressRepository userAddressRepository;
+	private final UserRepository userRepository;
+
+	public List<UserAddressResponse> getAddresses(Long userId) {
+		return userAddressRepository.findAllByUser_IdOrderByIsDefaultDescCreatedAtDesc(userId).stream()
+				.map(UserAddressResponse::from)
+				.toList();
+	}
+
+	@Transactional
+	public UserAddressResponse createAddress(Long userId, UserAddressRequest request) {
+		User user = userRepository.getReferenceById(userId);
+		if (request.isDefault()) {
+			userAddressRepository.clearDefault(userId);
+		}
+		UserAddress saved = userAddressRepository.save(UserAddress.create(
+				user, request.receiverName(), request.receiverPhone(), request.zipCode(),
+				request.address(), request.addressDetail(), request.isDefault()));
+		return UserAddressResponse.from(saved);
+	}
+
+	@Transactional
+	public UserAddressResponse updateAddress(Long userId, Long addressId, UserAddressRequest request) {
+		UserAddress address = findOwnedAddress(userId, addressId);
+		if (request.isDefault() && !address.getIsDefault()) {
+			userAddressRepository.clearDefault(userId);
+			address.markDefault();
+		} else if (!request.isDefault() && address.getIsDefault()) {
+			address.unmarkDefault();
+		}
+		address.update(request.receiverName(), request.receiverPhone(), request.zipCode(),
+				request.address(), request.addressDetail());
+		return UserAddressResponse.from(address);
+	}
+
+	@Transactional
+	public void deleteAddress(Long userId, Long addressId) {
+		UserAddress address = findOwnedAddress(userId, addressId);
+		userAddressRepository.delete(address);
+	}
+
+	@Transactional
+	public UserAddressResponse setDefaultAddress(Long userId, Long addressId) {
+		UserAddress address = findOwnedAddress(userId, addressId);
+		if (!address.getIsDefault()) {
+			userAddressRepository.clearDefault(userId);
+			address.markDefault();
+		}
+		return UserAddressResponse.from(address);
+	}
+
+	private UserAddress findOwnedAddress(Long userId, Long addressId) {
+		return userAddressRepository.findByIdAndUser_Id(addressId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.ADDRESS_NOT_FOUND));
+	}
 }

@@ -83,6 +83,8 @@ public enum ErrorCode {
 	JOURNAL_DUPLICATE_IMAGE(HttpStatus.UNPROCESSABLE_CONTENT, "같은 날 이미 사용한 사진입니다."),
 
 	// --- 문의 / 신고 도메인 ---
+	ADDRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "배송지를 찾을 수 없습니다."),
+
 	INQUIRY_NOT_FOUND(HttpStatus.NOT_FOUND, "문의를 찾을 수 없습니다."),
 	INQUIRY_INVALID_STATE(HttpStatus.CONFLICT, "이미 답변이 완료된 문의입니다."),
 	REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "신고를 찾을 수 없습니다."),
