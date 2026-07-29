@@ -16,9 +16,12 @@ public interface UserAddressRepository extends JpaRepository<UserAddress, Long> 
 
 	long countByUser_Id(Long userId);
 
-	// 새 기본 배송지를 지정하기 전 호출 — 사용자당 기본 배송지가 항상 최대 1개만 남도록
-	// 기존 기본 배송지를 먼저 해제한다.
+	// 대상 배송지만 기본으로 남기고 나머지는 전부 해제하는 원자적 단일 UPDATE.
+	// "기존 기본 해제" + "새 기본 지정"을 별도의 두 단계로 나누면 두 요청이 동시에
+	// 들어왔을 때 서로 다른 배송지를 각자 기본으로 지정한 채 커밋되어 기본 배송지가
+	// 2개가 될 수 있다 — 하나의 UPDATE 문으로 묶어야 DB가 이 갱신을 원자적으로 처리한다.
 	@Modifying
-	@Query("update UserAddress a set a.isDefault = false where a.user.id = :userId and a.isDefault = true")
-	void clearDefault(@Param("userId") Long userId);
+	@Query(value = "update user_address set is_default = (id = :targetId) "
+			+ "where user_id = :userId and (is_default = true or id = :targetId)", nativeQuery = true)
+	void setOnlyDefault(@Param("userId") Long userId, @Param("targetId") Long targetId);
 }

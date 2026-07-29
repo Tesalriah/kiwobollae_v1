@@ -35,26 +35,27 @@ public class UserAddressService {
 			throw new BusinessException(ErrorCode.ADDRESS_LIMIT_EXCEEDED);
 		}
 		User user = userRepository.getReferenceById(userId);
-		if (request.isDefault()) {
-			userAddressRepository.clearDefault(userId);
-		}
 		UserAddress saved = userAddressRepository.save(UserAddress.create(
 				user, request.receiverName(), request.receiverPhone(), request.zipCode(),
 				request.address(), request.addressDetail(), request.isDefault()));
+		// 새 배송지는 저장 후에야 id가 생기므로, 기본 지정은 저장 다음에 원자적으로 처리한다.
+		if (request.isDefault()) {
+			userAddressRepository.setOnlyDefault(userId, saved.getId());
+		}
 		return UserAddressResponse.from(saved);
 	}
 
 	@Transactional
 	public UserAddressResponse updateAddress(Long userId, Long addressId, UserAddressRequest request) {
 		UserAddress address = findOwnedAddress(userId, addressId);
-		if (request.isDefault() && !address.getIsDefault()) {
-			userAddressRepository.clearDefault(userId);
-			address.markDefault();
-		} else if (!request.isDefault() && address.getIsDefault()) {
-			address.unmarkDefault();
-		}
 		address.update(request.receiverName(), request.receiverPhone(), request.zipCode(),
 				request.address(), request.addressDetail());
+		if (request.isDefault()) {
+			userAddressRepository.setOnlyDefault(userId, addressId);
+			address.markDefault();
+		} else if (address.getIsDefault()) {
+			address.unmarkDefault();
+		}
 		return UserAddressResponse.from(address);
 	}
 
@@ -68,7 +69,7 @@ public class UserAddressService {
 	public UserAddressResponse setDefaultAddress(Long userId, Long addressId) {
 		UserAddress address = findOwnedAddress(userId, addressId);
 		if (!address.getIsDefault()) {
-			userAddressRepository.clearDefault(userId);
+			userAddressRepository.setOnlyDefault(userId, addressId);
 			address.markDefault();
 		}
 		return UserAddressResponse.from(address);
