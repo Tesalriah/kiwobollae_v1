@@ -40,6 +40,7 @@ const PHONE_REGEX = /^(010|011)\d{7,8}$/;
 const NICKNAME_MAX_LENGTH = 12;
 const NAME_MAX_LENGTH = 10;
 const PASSWORD_MIN_LENGTH = 8;
+const MAX_ADDRESSES = 5;
 
 export default function MyPage() {
   const { showToast } = useUI();
@@ -374,6 +375,10 @@ export default function MyPage() {
     setAddressFormError("");
     if (!addressReceiverName || !addressReceiverPhone || !addressZipCode || !addressLine) {
       setAddressFormError("필수 항목을 모두 입력해 주세요.");
+      return;
+    }
+    if (!PHONE_REGEX.test(addressReceiverPhone)) {
+      setAddressFormError("연락처는 010 또는 011로 시작하는 숫자 10~11자리여야 해요.");
       return;
     }
     const payload = {
@@ -771,7 +776,7 @@ export default function MyPage() {
             </button>
           </div>
         ))}
-        {!addressFormOpen && (
+        {!addressFormOpen && addresses.length < MAX_ADDRESSES && (
           <button
             type="button"
             onClick={openAddressCreate}
@@ -779,6 +784,11 @@ export default function MyPage() {
           >
             + 새 배송지 추가
           </button>
+        )}
+        {!addressFormOpen && addresses.length >= MAX_ADDRESSES && (
+          <div className="rounded-[14px] bg-[#F8FAF3] px-[18px] py-3.5 text-center text-sm text-sub">
+            배송지는 최대 {MAX_ADDRESSES}개까지 등록할 수 있어요.
+          </div>
         )}
       </div>
 

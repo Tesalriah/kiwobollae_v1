@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserAddressService {
 
+	private static final int MAX_ADDRESSES_PER_USER = 5;
+
 	private final UserAddressRepository userAddressRepository;
 	private final UserRepository userRepository;
 
@@ -29,6 +31,9 @@ public class UserAddressService {
 
 	@Transactional
 	public UserAddressResponse createAddress(Long userId, UserAddressRequest request) {
+		if (userAddressRepository.countByUser_Id(userId) >= MAX_ADDRESSES_PER_USER) {
+			throw new BusinessException(ErrorCode.ADDRESS_LIMIT_EXCEEDED);
+		}
 		User user = userRepository.getReferenceById(userId);
 		if (request.isDefault()) {
 			userAddressRepository.clearDefault(userId);

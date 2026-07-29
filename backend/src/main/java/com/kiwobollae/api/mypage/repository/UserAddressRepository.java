@@ -14,6 +14,8 @@ public interface UserAddressRepository extends JpaRepository<UserAddress, Long> 
 
 	Optional<UserAddress> findByIdAndUser_Id(Long id, Long userId);
 
+	long countByUser_Id(Long userId);
+
 	// 새 기본 배송지를 지정하기 전 호출 — 사용자당 기본 배송지가 항상 최대 1개만 남도록
 	// 기존 기본 배송지를 먼저 해제한다.
 	@Modifying
