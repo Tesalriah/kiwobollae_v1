@@ -5,19 +5,21 @@ import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api';
 import { withTopicParticle } from '@/lib/korean';
 import { getProduct, ProductDetail as ProductDetailData } from '@/lib/product-api';
+import { addCartItem } from '@/lib/order-api';
 import { useStore } from '@/lib/store';
 import { useUI } from '@/lib/ui';
 import PointPrice from '@/components/PointPrice';
 
 export default function ProductDetail({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { state, hydrated, set } = useStore();
+  const { state, hydrated, refreshCartCount } = useStore();
   const { showToast } = useUI();
   const productId = Number(params.id);
   const [product, setProduct] = useState<ProductDetailData | null>(null);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (!Number.isInteger(productId) || productId < 1) {
@@ -74,18 +76,27 @@ export default function ProductDetail({ params }: { params: { id: string } }) {
     );
   }
 
-  const addToCart = () => {
+  // 서버가 실제 소유권·재고·1~99 범위를 다시 검증하므로 여기서는 로그인 여부만 먼저 막는다.
+  const addToCart = async (): Promise<boolean> => {
     if (!hydrated || !state.accessToken) {
       showToast('장바구니와 구매 기능은 로그인 후 이용할 수 있어요.', 'err');
       return false;
     }
-    if (qty > product.stock) {
-      showToast(`지금은 최대 ${product.stock}개까지 담을 수 있어요.`, 'err');
+    setAdding(true);
+    try {
+      await addCartItem(product.id, qty, state.accessToken);
+      await refreshCartCount();
+      showToast('장바구니에 담았어요 🛒');
+      return true;
+    } catch (requestError) {
+      showToast(
+        requestError instanceof ApiError ? requestError.message : '장바구니에 담지 못했어요.',
+        'err',
+      );
       return false;
+    } finally {
+      setAdding(false);
     }
-    set((storeState) => ({ cartCount: storeState.cartCount + 1 }));
-    showToast('장바구니에 담았어요 🛒');
-    return true;
   };
 
   return (
@@ -165,17 +176,19 @@ export default function ProductDetail({ params }: { params: { id: string } }) {
               <div className="flex flex-wrap gap-2.5">
                 <button
                   type="button"
+                  disabled={adding}
                   onClick={addToCart}
-                  className="min-w-[130px] flex-1 cursor-pointer rounded-[13px] bg-brand-soft p-[15px] font-extrabold text-brand-dark"
+                  className="min-w-[130px] flex-1 cursor-pointer rounded-[13px] bg-brand-soft p-[15px] font-extrabold text-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   장바구니 담기
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (addToCart()) router.push('/checkout');
+                  disabled={adding}
+                  onClick={async () => {
+                    if (await addToCart()) router.push('/cart');
                   }}
-                  className="min-w-[130px] flex-1 cursor-pointer rounded-[13px] bg-brand p-[15px] font-extrabold text-white"
+                  className="min-w-[130px] flex-1 cursor-pointer rounded-[13px] bg-brand p-[15px] font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   바로 구매
                 </button>
