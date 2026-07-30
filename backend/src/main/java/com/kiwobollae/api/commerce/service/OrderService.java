@@ -48,8 +48,6 @@ public class OrderService {
 
 	private static final String API_TYPE = "ORDER_CREATE";
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-	// WalletService#deductForOrderPurchase가 요구하는 무상 포인트 차감 단위와 반드시 일치해야 한다.
-	private static final long ORDER_FREE_POINT_UNIT = 100L;
 
 	private final OrderRepository orderRepository;
 	private final OrderItemRepository orderItemRepository;
@@ -110,11 +108,10 @@ public class OrderService {
 				LocalDateTime.now(KST)
 		));
 
-		long requestedFreePoint = computeRequestedFreePoint(userId, totalPoint);
 		PointDeductionResult pointUsage = walletService.deductForOrderPurchase(
 				userId,
 				totalPoint,
-				requestedFreePoint,
+				request.requestedFreePoint(),
 				order.getId()
 		);
 		order.applyPointUsage(pointUsage);
@@ -203,13 +200,6 @@ public class OrderService {
 		}
 	}
 
-	// 무상 포인트를 100원 단위로, 가진 만큼(최대 결제 총액까지) 우선 사용하도록 자동 계산한다.
-	private long computeRequestedFreePoint(Long userId, long totalPoint) {
-		long freeBalance = Math.max(walletService.getWallet(userId).freePoint(), 0L);
-		long usable = Math.min(freeBalance, totalPoint);
-		return usable - (usable % ORDER_FREE_POINT_UNIT);
-	}
-
 	private void validate(Long userId, String idempotencyKey, OrderCreateRequest request) {
 		if (userId == null) {
 			throw new BusinessException(ErrorCode.AUTH_AUTHENTICATION_REQUIRED);
@@ -230,8 +220,8 @@ public class OrderService {
 					.map(String::valueOf)
 					.reduce((a, b) -> a + "," + b)
 					.orElse("");
-			String value = sortedIds + ":" + request.receiverName() + ":" + request.receiverPhone()
-					+ ":" + request.address() + ":" + request.addressDetail();
+			String value = sortedIds + ":" + request.requestedFreePoint() + ":" + request.receiverName()
+					+ ":" + request.receiverPhone() + ":" + request.address() + ":" + request.addressDetail();
 			return HexFormat.of().formatHex(
 					MessageDigest.getInstance("SHA-256")
 							.digest(value.getBytes(StandardCharsets.UTF_8))
