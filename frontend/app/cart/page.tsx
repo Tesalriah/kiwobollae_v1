@@ -9,6 +9,7 @@ import PointPrice from '@/components/PointPrice';
 import {
   CartItemData,
   deleteCartItem,
+  deleteCartItems,
   getCart,
   updateCartItemQuantity,
 } from '@/lib/order-api';
@@ -16,12 +17,13 @@ import {
 export default function Cart() {
   const router = useRouter();
   const { state, hydrated, refreshCartCount } = useStore();
-  const { showToast } = useUI();
+  const { showToast, askConfirm } = useUI();
   const [items, setItems] = useState<CartItemData[]>([]);
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyIds, setBusyIds] = useState<Record<number, boolean>>({});
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const loadCart = useCallback(async () => {
     if (!state.accessToken) return;
@@ -103,7 +105,39 @@ export default function Cart() {
     }
   };
 
+  // 체크된 항목(주문 선택용 체크박스를 그대로 재사용)을 한 번에 지운다. 서버가 원자적으로
+  // 처리하므로 하나라도 실패하면 전체가 실패하고 아무것도 지워지지 않는다. 여러 개가 한 번에
+  // 사라지는 동작이라 단일 삭제(×)와 달리 확인창을 거친다.
+  const removeSelected = () => {
+    const ids = items.filter((item) => checked[item.id]).map((item) => item.id);
+    if (ids.length === 0 || bulkDeleting) return;
+
+    askConfirm({
+      icon: 'delete',
+      title: `${ids.length}개 상품을 삭제할까요?`,
+      body: '선택한 장바구니 상품이 모두 삭제돼요.',
+      ok: '삭제',
+      danger: true,
+      onOk: async () => {
+        setBulkDeleting(true);
+        try {
+          await deleteCartItems(ids, state.accessToken);
+          setItems((prev) => prev.filter((existing) => !ids.includes(existing.id)));
+          await refreshCartCount();
+        } catch (requestError) {
+          showToast(
+            requestError instanceof ApiError ? requestError.message : '선택한 항목을 삭제하지 못했어요.',
+            'err',
+          );
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  };
+
   const selectedItems = items.filter((item) => checked[item.id] && !item.soldOut);
+  const checkedCount = items.filter((item) => checked[item.id]).length;
   const total = selectedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const walletTotal = state.wallet.free + state.wallet.paid;
   const canPurchase = selectedItems.length > 0 && !selectedItems.some((item) => item.stockShortage);
@@ -132,6 +166,16 @@ export default function Cart() {
       ) : (
         <div className="grid items-start gap-[22px] [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
           <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                disabled={checkedCount === 0 || bulkDeleting}
+                onClick={removeSelected}
+                className="cursor-pointer text-[13px] font-bold text-sub underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40"
+              >
+                {bulkDeleting ? '삭제 중...' : `선택 삭제 (${checkedCount})`}
+              </button>
+            </div>
             {items.map((item) => {
               const on = checked[item.id] && !item.soldOut;
               return (
