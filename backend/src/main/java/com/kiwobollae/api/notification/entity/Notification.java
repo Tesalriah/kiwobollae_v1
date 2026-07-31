@@ -64,4 +64,32 @@ public class Notification extends BaseEntity {
 
 	@Column(name = "create_at", nullable = false)
 	private LocalDateTime createdAt;
+
+	public static Notification create(
+			User user,
+			NotificationType type,
+			String title,
+			String content,
+			String linkUrl,
+			String refType,
+			Long refId,
+			LocalDateTime createdAt
+	) {
+		return Notification.builder()
+				.user(user)
+				.type(type)
+				.title(title)
+				.content(content)
+				.linkUrl(linkUrl)
+				.refType(refType)
+				.refId(refId)
+				.isRead(false)
+				.createdAt(createdAt)
+				.build();
+	}
+
+	public void markRead(LocalDateTime readAt) {
+		this.isRead = true;
+		this.readAt = readAt;
+	}
 }
