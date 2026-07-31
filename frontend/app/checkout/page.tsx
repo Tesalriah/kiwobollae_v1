@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ApiError, getAddresses, UserAddress } from '@/lib/api';
@@ -31,6 +31,11 @@ function CheckoutInner() {
   const [freePointInput, setFreePointInput] = useState(0);
   const [ordering, setOrdering] = useState(false);
   const [result, setResult] = useState<OrderDetailData | null>(null);
+  // Fixed per payment attempt so a client-side timeout/retry replays the same idempotency
+  // key instead of minting a fresh one — otherwise the server's replay protection (which
+  // hashes address + free-point request into the key) is bypassed and a request that
+  // actually succeeded gets re-run as a brand-new order on retry, double-charging points.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!hydrated || !state.accessToken) return;
@@ -78,6 +83,7 @@ function CheckoutInner() {
 
   const place = async () => {
     if (ordering || !pointUsage.valid || !selectedAddress) return;
+    if (!idempotencyKeyRef.current) idempotencyKeyRef.current = crypto.randomUUID();
     setOrdering(true);
     try {
       const order = await createOrder(
@@ -89,12 +95,18 @@ function CheckoutInner() {
           address: selectedAddress.address,
           addressDetail: selectedAddress.addressDetail || undefined,
         },
-        crypto.randomUUID(),
+        idempotencyKeyRef.current,
         state.accessToken,
       );
       await Promise.all([refreshWallet(), refreshCartCount()]);
       setResult(order);
     } catch (requestError) {
+      // A 4xx means the server explicitly rejected this attempt (e.g. bad request, stock
+      // gone) — safe to mint a new key next try. Anything else (network/timeout/5xx) is
+      // ambiguous about whether the order actually went through, so keep the same key.
+      if (requestError instanceof ApiError && requestError.status >= 400 && requestError.status < 500) {
+        idempotencyKeyRef.current = null;
+      }
       showToast(
         requestError instanceof ApiError ? requestError.message : '주문에 실패했어요. 잠시 후 다시 시도해 주세요.',
         'err',
