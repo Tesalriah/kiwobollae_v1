@@ -14,9 +14,6 @@ import com.kiwobollae.api.content.repository.PlantJournalRepository;
 import com.kiwobollae.api.content.repository.PlantProfileRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
-import com.kiwobollae.api.point.entity.enums.CurrencyType;
-import com.kiwobollae.api.point.entity.enums.PointRefType;
-import com.kiwobollae.api.point.entity.enums.PointTxType;
 import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -24,6 +21,7 @@ import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,14 +37,12 @@ public class PlantJournalService {
 	// 작성일·하루 경계는 KST 기준으로 판정한다 (중복검사·완료 판정의 "같은 날" 기준).
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-	// 일지 완료 보상 포인트. 임시값 — 추후 팀 협의 후 조정 예정.
-	private static final long JOURNAL_REWARD_AMOUNT = 100L;
-
 	private final PlantJournalRepository plantJournalRepository;
 	private final JournalImageRepository journalImageRepository;
 	private final PlantProfileRepository plantProfileRepository;
 	private final UserRepository userRepository;
 	private final WalletService walletService;
+	private final JournalImageUploadService journalImageUploadService;
 
 	@Transactional
 	public PlantJournalResponse createJournal(Long userId, PlantJournalRequest request) {
@@ -71,8 +67,7 @@ public class PlantJournalService {
 		LocalDateTime now = LocalDateTime.now(KST);
 		LocalDateTime startOfToday = today.atStartOfDay();
 		if (plantProfileRepository.claimJournalReward(profile.getId(), now, startOfToday) == 1) {
-			walletService.applyDelta(userId, PointTxType.JOURNAL_REWARD, CurrencyType.FREE,
-					JOURNAL_REWARD_AMOUNT, PointRefType.JOURNAL_COMPLETION, profile.getId());
+			walletService.rewardJournal(userId, journal.getId());
 		}
 		return PlantJournalResponse.from(journal, images);
 	}
@@ -106,6 +101,7 @@ public class PlantJournalService {
 
 		// 이미지 전체 교체: 기존 이미지를 먼저 지우고(같은 사진 유지 시 자기 자신과의 중복 오탐 방지),
 		// 원래 작성일 기준으로 중복검사한 뒤 새 이미지를 저장한다. 사진은 수정 불가가 아니라 전체 교체한다.
+		List<JournalImage> oldImages = journalImageRepository.findByJournalId(journalId);
 		journalImageRepository.deleteByJournalId(journalId);
 		LocalDate writtenDate = journal.getWrittenDate();
 		checkDuplicateImages(userId, request.images(), writtenDate);
@@ -116,6 +112,15 @@ public class PlantJournalService {
 						img.representative(), writtenDate))
 				.toList();
 		journalImageRepository.saveAll(images);
+
+		// 새 목록에 그대로 남아있는 사진(교체 안 한 경우)의 S3 객체까지 지우면 안 되므로,
+		// 실제로 빠진 것만 골라서 정리한다.
+		Set<String> keptUrls = request.images().stream().map(JournalImageRequest::imageUrl).collect(Collectors.toSet());
+		oldImages.stream()
+				.map(JournalImage::getImageUrl)
+				.filter(url -> !keptUrls.contains(url))
+				.forEach(url -> journalImageUploadService.delete(url, userId));
+
 		return PlantJournalResponse.from(journal, images);
 	}
 
@@ -123,24 +128,14 @@ public class PlantJournalService {
 	public void deleteJournal(Long userId, Long journalId) {
 		PlantJournal journal = plantJournalRepository.findOwnedActive(journalId, userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.JOURNAL_NOT_FOUND));
-		LocalDateTime now = LocalDateTime.now(KST);
-		journal.softDelete(now);
+		List<JournalImage> images = journalImageRepository.findByJournalId(journalId);
+		journal.softDelete(LocalDateTime.now(KST));
+		// 작성 보상은 삭제 여부와 무관하게 확정 지급한다. 당일 클레임도 유지하므로
+		// 삭제 후 같은 식물 프로필로 다시 작성해도 당일 추가 보상은 지급되지 않는다.
 
-		// 자정 기준 회수: 오늘 지급된 보상이 있고, 오늘 작성된 활성 일지가 이 삭제로 0이 되면
-		// (다른 날 작성된 일지가 남아있어도 오늘자 보상 근거는 아니므로 회수 대상) 원자적으로
-		// 클레임을 해제한 뒤에만 point 도메인에 회수를 요청한다.
-		PlantProfile profile = journal.getPlantProfile();
-		LocalDateTime grantedAt = profile.getJournalRewardGrantedAt();
-		LocalDate today = now.toLocalDate();
-		boolean grantedToday = grantedAt != null && grantedAt.toLocalDate().equals(today);
-		boolean hasTodayActiveJournal =
-				plantJournalRepository.existsByPlantProfileIdAndWrittenDateAndDeletedAtIsNull(profile.getId(), today);
-		if (grantedToday && !hasTodayActiveJournal) {
-			if (plantProfileRepository.clearJournalRewardIfMatches(profile.getId(), grantedAt) == 1) {
-				walletService.applyDelta(userId, PointTxType.CLAWBACK, CurrencyType.FREE,
-						-JOURNAL_REWARD_AMOUNT, PointRefType.JOURNAL_REVOCATION, profile.getId());
-			}
-		}
+		// soft delete는 사용자에게만 "삭제됨"으로 보일 뿐 복구 API가 없어 사실상 영구 삭제와
+		// 같으므로, 더 이상 어떤 일지도 참조하지 않는 S3 객체를 이 시점에 정리한다.
+		images.forEach(image -> journalImageUploadService.delete(image.getImageUrl(), userId));
 	}
 
 	// 페이지에 담긴 일지들의 이미지를 한 번에 로딩해 journalId로 묶는다 (개별 조회로 인한 N+1 방지).
