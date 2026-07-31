@@ -16,7 +16,7 @@ import {
 function CheckoutInner() {
   const params = useSearchParams();
   const { state, hydrated, refreshWallet, refreshCartCount } = useStore();
-  const { showToast } = useUI();
+  const { showToast, askConfirm } = useUI();
   const selectedIds = (params.get('ids') || '')
     .split(',')
     .map((value) => Number(value))
@@ -284,7 +284,15 @@ function CheckoutInner() {
 
           <button
             type="button"
-            onClick={place}
+            onClick={() =>
+              askConfirm({
+                icon: 'shopping_cart_checkout',
+                title: '주문을 완료할까요?',
+                body: `유상 ${fmt(pointUsage.usedPaidPoint)}P, 무상 ${fmt(pointUsage.usedFreePoint)}P가 사용돼요.`,
+                ok: '결제하고 주문 완료',
+                onOk: place,
+              })
+            }
             disabled={ordering || !pointUsage.valid || !selectedAddress}
             className={`w-full rounded-[13px] p-[15px] font-extrabold text-white ${
               ordering || !pointUsage.valid || !selectedAddress ? 'cursor-not-allowed bg-[#b0c894]' : 'cursor-pointer bg-brand'
