@@ -74,7 +74,15 @@ public class CartService {
 	public CartItemResponse updateQuantity(Long userId, Long cartItemId, Integer quantity) {
 		CartItem cartItem = cartItemRepository.findByIdAndUserId(cartItemId, userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.CART_ITEM_NOT_FOUND));
-		validateQuantity(quantity, cartItem.getProduct());
+		// Stock may have dropped below what's already in the cart since it was added. A
+		// decrease should still be allowed even then (the user is trying to fix exactly
+		// that problem) — only block the request when it *increases* the quantity past
+		// current stock. CartItemResponse.stockShortage already flags the remaining gap.
+		if (quantity > cartItem.getQuantity()) {
+			validateQuantity(quantity, cartItem.getProduct());
+		} else if (quantity > MAX_QUANTITY_PER_ITEM) {
+			throw new BusinessException(ErrorCode.CART_QUANTITY_LIMIT_EXCEEDED);
+		}
 		cartItem.changeQuantity(quantity);
 		return CartItemResponse.from(cartItem);
 	}
