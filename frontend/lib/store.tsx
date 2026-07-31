@@ -45,13 +45,10 @@ export interface StoreState {
   accessToken: string | null;
   user: CurrentUser | null;
   wallet: Wallet;
-  rewardedToday: boolean;
-  wroteToday: boolean;
   growingCount: number;
   plantCount: number;
   readyCards: number;
   cartCount: number;
-  lastReward: number;
   // 벨 드롭다운 미리보기용 최근 알림 몇 건. 전체 목록·페이지네이션은 /notifications
   // 페이지가 이 store를 거치지 않고 직접 조회한다(다른 목록형 페이지와 동일한 패턴).
   notifications: NotificationData[];
@@ -68,10 +65,6 @@ export interface StoreContextValue {
   walletLoaded: boolean;
   walletError: string | null;
   set: (patch: StorePatch) => void;
-  spend: (amount: number) => void;
-  spendForOrder: (amount: number, requestedFreePoint: number) => void;
-  creditFree: (amount: number) => void;
-  creditPaid: (amount: number) => void;
   reset: () => void;
   balance: number;
   unreadCount: number;
@@ -91,13 +84,10 @@ const DEFAULTS: StoreState = {
   accessToken: null,
   user: null,
   wallet: EMPTY_WALLET,
-  rewardedToday: false,
-  wroteToday: false,
   growingCount: 3,
   plantCount: 5,
   readyCards: 2,
   cartCount: 0,
-  lastReward: 30,
   notifications: [],
   unreadNotificationCount: 0,
 };
@@ -292,35 +282,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }));
   }, []);
 
-  // 무상 포인트 먼저 차감
-  const spend = useCallback((amount: number) => {
-    setState((s) => {
-      let { free, paid } = s.wallet;
-      const uf = Math.min(free, amount);
-      free -= uf; paid -= (amount - uf);
-      return { ...s, wallet: { free: Math.max(0, free), paid: Math.max(0, paid) } };
-    });
-  }, []);
-
-  // 상품 주문 목 흐름 전용. 실제 주문 API가 연결되면 서버 응답 후 refreshWallet()로 대체한다.
-  const spendForOrder = useCallback((amount: number, requestedFreePoint: number) => {
-    setState((s) => ({
-      ...s,
-      wallet: {
-        free: s.wallet.free - requestedFreePoint,
-        paid: s.wallet.paid - (amount - requestedFreePoint),
-      },
-    }));
-  }, []);
-
-  const creditFree = useCallback((amount: number) => {
-    setState((s) => ({ ...s, wallet: { free: s.wallet.free + amount, paid: s.wallet.paid } }));
-  }, []);
-
-  const creditPaid = useCallback((amount: number) => {
-    setState((s) => ({ ...s, wallet: { free: s.wallet.free, paid: s.wallet.paid + amount } }));
-  }, []);
-
   const reset = useCallback(() => {
     walletRequestId.current += 1;
     setWalletLoading(false);
@@ -392,10 +353,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         walletLoaded,
         walletError,
         set,
-        spend,
-        spendForOrder,
-        creditFree,
-        creditPaid,
         reset,
         balance,
         unreadCount,
