@@ -294,7 +294,14 @@ resource "aws_instance" "ec2_1" {
     volume_size = 20
   }
 
-  user_data = local.ec2_user_data
+  user_data                   = local.ec2_user_data
+  user_data_replace_on_change = true
 
   tags = { Name = "${var.prefix}-ec2-1" }
+}
+
+resource "aws_eip" "ec2_1" {
+  instance = aws_instance.ec2_1.id
+  domain   = "vpc"
+  tags     = { Name = "${var.prefix}-eip-1" }
 }
