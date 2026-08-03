@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api';
 import { useStore } from '@/lib/store';
 import { useUI } from '@/lib/ui';
@@ -44,6 +45,7 @@ function dateGroupLabel(iso: string): string {
 }
 
 export default function Notifications() {
+  const router = useRouter();
   const { showToast } = useUI();
   const { state, hydrated, refreshNotifications, markAllNotifsRead } = useStore();
   const [type, setType] = useState<NotificationType | undefined>(undefined);
@@ -75,8 +77,7 @@ export default function Notifications() {
   }, [hydrated, load]);
 
   const click = async (n: NotificationData) => {
-    if (!state.accessToken) return;
-    if (!n.isRead) {
+    if (state.accessToken && !n.isRead) {
       setItems((prev) => prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item)));
       try {
         await markNotificationRead(n.id, state.accessToken);
@@ -84,6 +85,7 @@ export default function Notifications() {
         void refreshNotifications();
       }
     }
+    if (n.linkUrl) router.push(n.linkUrl);
   };
 
   const remove = async (event: ReactMouseEvent, n: NotificationData) => {
