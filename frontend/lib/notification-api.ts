@@ -24,8 +24,14 @@ export interface NotificationSettingData {
   updatedAt: string | null;
 }
 
+// accessToken은 선택 인자다 — 생략하면 lib/api.ts의 store-synced 토큰을 쓰면서
+// 401 발생 시 access token을 조용히 재발급받아 재시도한다(로그인 페이지 등 명시적
+// 토큰 override가 필요한 극히 일부 호출에서만 넘긴다). store.tsx의 30초 배지 폴링이
+// 매번 넘겼던 accessToken을 그대로 request()에 전달하면, 그 경로는 재발급-재시도를
+// 건너뛰고 바로 401 → 로그아웃 처리로 빠져 유효한 refresh token이 있어도 폴링
+// 도중 세션이 끊긴 것처럼 보였다.
 export function getNotifications(
-  accessToken: string,
+  accessToken?: string | null,
   type?: NotificationType,
   page = 0,
   size = 20,
@@ -40,7 +46,7 @@ export function getNotifications(
 }
 
 export function getUnreadNotificationCount(
-  accessToken: string,
+  accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<{ unreadCount: number }> {
   return request<{ unreadCount: number }>('/api/v1/notifications/unread-count', {

@@ -254,9 +254,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      // accessToken을 명시적으로 넘기지 않는다 — lib/api.ts의 store-synced 토큰을 쓰게
+      // 해야 access token이 만료됐을 때 조용히 재발급받아 재시도한다. 명시적으로 넘기면
+      // 그 경로를 건너뛰고 바로 401 → 로그아웃으로 빠져, 30초마다 도는 이 폴링이 유효한
+      // refresh token이 있어도 세션을 끊어버릴 수 있다.
       const [page, unread] = await Promise.all([
-        getNotifications(state.accessToken, undefined, 0, 5),
-        getUnreadNotificationCount(state.accessToken),
+        getNotifications(undefined, undefined, 0, 5),
+        getUnreadNotificationCount(undefined),
       ]);
       if (requestId !== notificationsRequestId.current) return;
       setState((s) => ({ ...s, notifications: page.content, unreadNotificationCount: unread.unreadCount }));
