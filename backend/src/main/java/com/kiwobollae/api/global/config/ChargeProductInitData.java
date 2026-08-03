@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@Profile("local")
+@Profile({"local", "prod"})
 @ConditionalOnProperty(prefix = "app.seed.charge-product", name = "enabled", havingValue = "true",
 		matchIfMissing = true)
 @RequiredArgsConstructor
