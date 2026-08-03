@@ -154,6 +154,8 @@ jobs:
               -e NAVER_CLIENT_ID="${NAVER_CLIENT_ID:-}" \
               -e NAVER_CLIENT_SECRET="${NAVER_CLIENT_SECRET:-}" \
               -e NAVER_REDIRECT_URI="${NAVER_REDIRECT_URI:-}" \
+              -e PAYMENT_PROVIDER="${PAYMENT_PROVIDER:-}" \
+              -e PAYMENT_ALLOW_MOCK_IN_PROD="${PAYMENT_ALLOW_MOCK_IN_PROD:-}" \
               "${IMAGE}"
 
             echo "health-check: ${GREEN}"
