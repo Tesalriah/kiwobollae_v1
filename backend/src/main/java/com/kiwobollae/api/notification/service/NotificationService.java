@@ -38,13 +38,20 @@ public class NotificationService {
 	private final UserRepository userRepository;
 
 	public Page<NotificationResponse> getNotifications(Long userId, NotificationType type, Pageable pageable) {
-		LocalDateTime retentionCutoff = LocalDateTime.now(KST).minusDays(RETENTION_DAYS);
-		return notificationRepository.search(userId, type, retentionCutoff, pageable)
+		return notificationRepository.search(userId, type, retentionCutoff(), pageable)
 				.map(NotificationResponse::from);
 	}
 
+	// getNotifications와 같은 보관 기간 기준을 써야 한다 — 그렇지 않으면 목록에는 안 보이는
+	// 알림이 배지 수에는 남아 있는 불일치가 생긴다.
 	public UnreadCountResponse getUnreadCount(Long userId) {
-		return new UnreadCountResponse(notificationRepository.countByUser_IdAndIsReadFalse(userId));
+		return new UnreadCountResponse(
+				notificationRepository.countByUser_IdAndIsReadFalseAndCreatedAtGreaterThanEqual(userId, retentionCutoff())
+		);
+	}
+
+	private LocalDateTime retentionCutoff() {
+		return LocalDateTime.now(KST).minusDays(RETENTION_DAYS);
 	}
 
 	@Transactional

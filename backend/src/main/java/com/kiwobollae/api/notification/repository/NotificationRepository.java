@@ -27,7 +27,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 	@Query("select n from Notification n where n.id = :id and n.user.id = :userId")
 	Optional<Notification> findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
-	long countByUser_IdAndIsReadFalse(Long userId);
+	// 목록 조회(search)와 동일하게 보관 기간이 지난 알림은 배지 카운트에서도 제외한다 —
+	// 그렇지 않으면 화면에 안 보이는 알림 때문에 배지 수가 실제 목록과 어긋난다.
+	long countByUser_IdAndIsReadFalseAndCreatedAtGreaterThanEqual(Long userId, LocalDateTime retentionCutoff);
 
 	@Modifying
 	@Query("update Notification n set n.isRead = true, n.readAt = :readAt "
