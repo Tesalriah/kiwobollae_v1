@@ -2,13 +2,15 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useStore, fmt, NotificationType } from '@/lib/store';
+import { useStore, fmt } from '@/lib/store';
+import { NotificationData, NotificationType } from '@/lib/notification-api';
 import { useUI } from '@/lib/ui';
 import { levelTitle } from '@/lib/levels';
 import Skeleton from './Skeleton';
 
 const NOTIF_ICON: Record<NotificationType, string> = {
   DELIVERY: '📦',
+  COMMUNITY: '💬',
   POINT: '☀️',
   JOURNAL_REMINDER: '🌱',
   INQUIRY: '💬',
@@ -21,15 +23,16 @@ const NAV = [
   { key: 'journal', label: '일지', href: '/journals' },
   { key: 'shop', label: '상점', href: '/shop' },
   { key: 'cards', label: '카드', href: '/cards' },
+  { key: 'gacha', label: '가챠', href: '/gacha' },
   { key: 'exchange', label: '교환', href: '/my/exchanges' },
 ];
 
-// 모바일 하단 탭은 5칸 제한이라 식물/일지를 "식물" 하나로 합쳐(일지는 식물 상세에서
-// 접근) 카드가 들어갈 자리를 확보했다. 데스크톱 상단 NAV는 그대로 둘 다 유지.
+// 모바일 하단 탭은 식물/일지를 "식물" 하나로 합치고 카드 수집과 가챠를 각각 바로 접근하게 한다.
 const BOTTOM = [
   { key: 'home', label: '홈', icon: 'home', href: '/' },
   { key: 'plants', label: '식물', icon: 'potted_plant', href: '/plants' },
   { key: 'cards', label: '카드', icon: 'style', href: '/cards' },
+  { key: 'gacha', label: '가챠', icon: 'casino', href: '/gacha' },
   { key: 'shop', label: '상점', icon: 'storefront', href: '/shop' },
   { key: 'account', label: 'MY', icon: 'person', href: '/my' },
 ];
@@ -39,6 +42,7 @@ function activeKey(pathname: string) {
   if (pathname.startsWith('/plants')) return 'plants';
   if (pathname.startsWith('/journals')) return 'journal';
   if (pathname.startsWith('/cards')) return 'cards';
+  if (pathname.startsWith('/gacha')) return 'gacha';
   if (pathname.startsWith('/shop')) return 'shop';
   if (pathname.startsWith('/my/exchanges') || pathname.startsWith('/exchange')) return 'exchange';
   if (pathname.startsWith('/my')) return 'account';
@@ -69,10 +73,10 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', onClick);
   }, [bellOpen, profileOpen]);
 
-  const openNotif = (n: (typeof state.notifications)[number]) => {
-    markNotifRead(n.id);
-    if (n.broken) showToast('연결된 내용을 찾을 수 없어요.', 'err');
+  const openNotif = (n: NotificationData) => {
     setBellOpen(false);
+    void markNotifRead(n.id);
+    if (n.linkUrl) router.push(n.linkUrl);
   };
 
   const doLogout = () => {
@@ -153,16 +157,19 @@ export default function Navbar() {
                   <div className="absolute right-0 top-[48px] w-80 overflow-hidden rounded-2xl border border-line bg-white shadow-[0_14px_40px_-12px_rgba(85,139,47,.35)]">
                     <div className="flex items-center justify-between border-b border-[#F2ECDD] px-4 py-3.5">
                       <b className="text-[15px] font-bold">알림</b>
-                      <button type="button" onClick={markAllNotifsRead} className="cursor-pointer text-[13px] font-bold text-brand hover:text-brand-dark">
+                      <button type="button" onClick={() => void markAllNotifsRead()} className="cursor-pointer text-[13px] font-bold text-brand hover:text-brand-dark">
                         모두 읽음
                       </button>
                     </div>
-                    {state.notifications.slice(0, 4).map((n) => (
+                    {state.notifications.length === 0 && (
+                      <div className="px-4 py-6 text-center text-[13px] text-faint">알림이 없어요.</div>
+                    )}
+                    {state.notifications.map((n) => (
                       <button
                         key={n.id}
                         type="button"
                         onClick={() => openNotif(n)}
-                        className={`flex w-full cursor-pointer items-start gap-[11px] border-b border-[#F7F2E7] px-4 py-3 text-left transition-colors duration-150 hover:bg-brand-soft ${n.unread ? 'bg-[#FFFBEB]' : 'bg-white'}`}
+                        className={`flex w-full cursor-pointer items-start gap-[11px] border-b border-[#F7F2E7] px-4 py-3 text-left transition-colors duration-150 hover:bg-brand-soft ${!n.isRead ? 'bg-[#FFFBEB]' : 'bg-white'}`}
                       >
                         <span className="text-[18px]">{NOTIF_ICON[n.type]}</span>
                         <div className="min-w-0">
