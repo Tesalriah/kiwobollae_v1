@@ -41,4 +41,8 @@ app:
       redirect-uri: ${NAVER_REDIRECT_URI}
 
 payment:
-  provider: TOSS
+  # 실제 Toss 연동 전까지, 배포를 막지 않으려면 EC2의 /etc/environment에
+  # PAYMENT_PROVIDER=MOCK, PAYMENT_ALLOW_MOCK_IN_PROD=true를 임시로 설정한다.
+  # Toss 연동이 끝나면 두 환경변수를 지우기만 하면 기본값(TOSS/false)으로 돌아온다.
+  provider: ${PAYMENT_PROVIDER:TOSS}
+  allow-mock-in-prod: ${PAYMENT_ALLOW_MOCK_IN_PROD:false}
