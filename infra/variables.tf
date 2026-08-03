@@ -27,6 +27,11 @@ variable "db_instance_class" {
   default = "db.t3.micro"
 }
 
+variable "db_deletion_protection" {
+  description = "true면 terraform destroy가 RDS 삭제 단계에서 실패함. destroy 전에 false로 바꿔 apply 한 번 실행 후 진행할 것"
+  default     = true
+}
+
 variable "s3_bucket" {
   default = "4team-storage-495264909330-ap-northeast-2-an"
 }

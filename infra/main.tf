@@ -160,7 +160,7 @@ resource "aws_db_instance" "this" {
   backup_retention_period   = 7
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.prefix}-mysql-final"
-  deletion_protection       = true
+  deletion_protection       = var.db_deletion_protection
 
   tags = { Name = "${var.prefix}-mysql" }
 }
@@ -259,6 +259,18 @@ locals {
     systemctl enable --now docker
     docker network create common
 
+    # NPM/Redis 데이터를 EC2 수명과 분리된 별도 EBS 볼륨(/dev/xvdf)에 저장.
+    # 인스턴스가 재생성돼도(user_data_replace_on_change) 이 볼륨은 그대로 재부착되므로
+    # Let's Encrypt 인증서/프록시 설정이 날아가지 않는다 (Let's Encrypt는 동일 도메인 인증서
+    # 재발급을 주당 5회로 제한하므로, 재생성마다 인증서를 새로 받으면 금방 막힌다).
+    DEVICE=/dev/xvdf
+    if ! blkid "$DEVICE" >/dev/null 2>&1; then
+      mkfs -t ext4 "$DEVICE"
+    fi
+    mkdir -p /dockerProjects
+    mount "$DEVICE" /dockerProjects
+    grep -q "$DEVICE" /etc/fstab || echo "$DEVICE /dockerProjects ext4 defaults,nofail 0 2" >> /etc/fstab
+
     docker run -d \
       --name npm_1 \
       --restart unless-stopped \
@@ -298,6 +310,23 @@ resource "aws_instance" "ec2_1" {
   user_data_replace_on_change = true
 
   tags = { Name = "${var.prefix}-ec2-1" }
+}
+
+# EC2 인스턴스 수명(재생성 포함)과 분리된 영구 볼륨. NPM의 Let's Encrypt 인증서/프록시 설정 보관용.
+resource "aws_ebs_volume" "npm_data" {
+  # subnet_1과 같은 AZ로 고정 (instance 속성을 참조하면 인스턴스 재생성 때마다 볼륨도 같이
+  # 재생성 대상으로 잡힐 수 있어, 볼륨 수명을 인스턴스와 명시적으로 분리한다).
+  availability_zone = "${var.region}a"
+  size              = 5
+  type              = "gp3"
+  tags              = { Name = "${var.prefix}-npm-data" }
+}
+
+resource "aws_volume_attachment" "npm_data" {
+  device_name  = "/dev/xvdf"
+  volume_id    = aws_ebs_volume.npm_data.id
+  instance_id  = aws_instance.ec2_1.id
+  force_detach = true
 }
 
 resource "aws_eip" "ec2_1" {

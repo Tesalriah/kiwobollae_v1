@@ -167,10 +167,15 @@ jobs:
             [[ "${CODE:-000}" == "200" ]] || { echo "${GREEN} health failed"; docker logs --tail=200 "${GREEN}" || true; docker rm -f "${GREEN}" || true; exit 1; }
 
             NEW_CFG=$(jq -n --arg host "${GREEN}" --argjson port ${PORT_IN} '{forward_host:$host, forward_port:$port}')
-            curl -s -X PUT "http://127.0.0.1:81/api/nginx/proxy-hosts/${PROXY_ID}" \
+            SWITCH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "http://127.0.0.1:81/api/nginx/proxy-hosts/${PROXY_ID}" \
               -H "Authorization: Bearer ${TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "${NEW_CFG}" >/dev/null
+              -d "${NEW_CFG}")
+            if [[ "${SWITCH_CODE}" != "200" ]]; then
+              echo "upstream switch failed (http ${SWITCH_CODE}) - rolling back, keeping ${BLUE} live"
+              docker rm -f "${GREEN}" || true
+              exit 1
+            fi
             echo "switch upstream -> ${GREEN}:${PORT_IN}"
 
             if [[ "${BLUE}" != "none" ]]; then
