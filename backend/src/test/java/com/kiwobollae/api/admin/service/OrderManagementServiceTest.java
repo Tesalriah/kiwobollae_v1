@@ -155,6 +155,9 @@ class OrderManagementServiceTest {
 		OrderResponse response = orderManagementService.deliverOrder(50L);
 
 		assertThat(response.deliveryStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+		verify(notificationService).notify(
+				eq(7L), eq(NotificationType.DELIVERY), any(), any(), any(), any(), eq(50L)
+		);
 	}
 
 	@Test

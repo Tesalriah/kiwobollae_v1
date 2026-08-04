@@ -88,7 +88,17 @@ public class OrderManagementService {
 		if (updated == 0) {
 			throwNotFoundOrInvalidState(id);
 		}
-		return OrderResponse.from(findOrderForAdmin(id));
+		Order order = findOrderForAdmin(id);
+		notificationService.notify(
+				order.getUser().getId(),
+				NotificationType.DELIVERY,
+				"주문하신 상품이 배송완료됐어요 🎉",
+				"주문 #" + id + " · " + order.getAddress(),
+				"/my/orders#order-" + id,
+				REF_TYPE,
+				id
+		);
+		return OrderResponse.from(order);
 	}
 
 	@Transactional
