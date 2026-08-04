@@ -9,12 +9,23 @@ import {
   prepareExchange,
   shipExchange,
 } from "@/lib/exchange-api";
-import { createSpecies, getSpecies, PlantSpeciesData, updateSpecies } from "@/lib/species-api";
+import {
+  cancelOrderForAdmin,
+  deliverOrderForAdmin,
+  getOrdersForAdmin,
+  OrderData,
+  shipOrderForAdmin,
+} from "@/lib/order-api";
+import {
+  createSpecies,
+  getSpecies,
+  PlantSpeciesData,
+  updateSpecies,
+} from "@/lib/species-api";
 import { fmt, useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useEffect, useState } from "react";
 
-const DELSEQ = ["PREPARING", "SHIPPING", "DELIVERED"];
 const delMeta: Record<string, [string, string, string]> = {
   PREPARING: ["준비중", "bg-[#FFF3CC] text-gold-text", "배송 시작"],
   SHIPPING: ["배송중", "bg-[#E3F0FA] text-[#3a76a8]", "배송 완료"],
@@ -61,37 +72,40 @@ const BTN_SOFT =
 export default function Admin() {
   const { showToast } = useUI();
   const [tab, setTab] = useState("orders");
-  const [orders, setOrders] = useState([
-    {
-      id: 1,
-      no: "ORD-...0043",
-      user: "초록",
-      amount: 2100,
-      delivery: "PREPARING",
-    },
-    {
-      id: 2,
-      no: "ORD-...0031",
-      user: "민트",
-      amount: 1500,
-      delivery: "SHIPPING",
-    },
-    {
-      id: 3,
-      no: "ORD-...0022",
-      user: "단풍",
-      amount: 1200,
-      delivery: "DELIVERED",
-    },
-    {
-      id: 4,
-      no: "ORD-...0018",
-      user: "노을",
-      amount: 800,
-      delivery: "PREPARING",
-    },
-  ]);
   const { state, hydrated } = useStore();
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState("");
+
+  useEffect(() => {
+    if (!hydrated || !state.accessToken) return;
+    const accessToken = state.accessToken;
+
+    const controller = new AbortController();
+    setOrdersLoading(true);
+    setOrdersError("");
+
+    getOrdersForAdmin(accessToken, undefined, 0, 50, controller.signal)
+      .then((page) => setOrders(page.content))
+      .catch((requestError) => {
+        if (
+          requestError instanceof DOMException &&
+          requestError.name === "AbortError"
+        )
+          return;
+        setOrders([]);
+        setOrdersError(
+          requestError instanceof ApiError
+            ? requestError.message
+            : "주문을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setOrdersLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [hydrated, state.accessToken]);
   const [exchanges, setExchanges] = useState<ExchangeOrderData[]>([]);
   const [exchangesLoading, setExchangesLoading] = useState(true);
   const [exchangesError, setExchangesError] = useState("");
@@ -129,10 +143,20 @@ export default function Admin() {
   const [speciesList, setSpeciesList] = useState<PlantSpeciesData[]>([]);
   const [speciesLoading, setSpeciesLoading] = useState(true);
   const [speciesError, setSpeciesError] = useState("");
-  const [speciesForm, setSpeciesForm] = useState({ name: "", category: "", careGuide: "" });
+  const [speciesForm, setSpeciesForm] = useState({
+    name: "",
+    category: "",
+    careGuide: "",
+  });
   const [speciesSubmitting, setSpeciesSubmitting] = useState(false);
-  const [editingSpecies, setEditingSpecies] = useState<PlantSpeciesData | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", category: "", careGuide: "" });
+  const [editingSpecies, setEditingSpecies] = useState<PlantSpeciesData | null>(
+    null,
+  );
+  const [editForm, setEditForm] = useState({
+    name: "",
+    category: "",
+    careGuide: "",
+  });
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   useEffect(() => {
@@ -145,7 +169,11 @@ export default function Admin() {
     getSpecies(accessToken, controller.signal)
       .then((data) => setSpeciesList(data))
       .catch((requestError) => {
-        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+        if (
+          requestError instanceof DOMException &&
+          requestError.name === "AbortError"
+        )
+          return;
         setSpeciesList([]);
         setSpeciesError(
           requestError instanceof ApiError
@@ -227,21 +255,40 @@ export default function Admin() {
     },
   ]);
 
-  const advOrder = (id: number) => {
-    setOrders(
-      orders.map((o) =>
-        o.id === id
-          ? {
-              ...o,
-              delivery:
-                DELSEQ[
-                  Math.min(DELSEQ.length - 1, DELSEQ.indexOf(o.delivery) + 1)
-                ],
-            }
-          : o,
-      ),
-    );
-    showToast("배송 상태를 업데이트했어요. 고객에게 알림이 발송돼요 📦");
+  const advOrder = async (o: OrderData) => {
+    if (!state.accessToken) return;
+    try {
+      let updated: OrderData;
+      if (o.deliveryStatus === "PREPARING")
+        updated = await shipOrderForAdmin(o.id, state.accessToken);
+      else if (o.deliveryStatus === "SHIPPING")
+        updated = await deliverOrderForAdmin(o.id, state.accessToken);
+      else return;
+      setOrders((prev) => prev.map((p) => (p.id === o.id ? updated : p)));
+      showToast("배송 상태를 업데이트했어요. 고객에게 알림이 발송돼요 📦");
+    } catch (requestError) {
+      showToast(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "상태 변경에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        "err",
+      );
+    }
+  };
+  const cancelOrderAsAdmin = async (id: number) => {
+    if (!state.accessToken) return;
+    try {
+      const updated = await cancelOrderForAdmin(id, state.accessToken);
+      setOrders((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      showToast("주문을 취소하고 재고·포인트를 복원했어요.");
+    } catch (requestError) {
+      showToast(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "취소에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        "err",
+      );
+    }
   };
   const advEx = async (x: ExchangeOrderData) => {
     if (!state.accessToken) return;
@@ -286,15 +333,20 @@ export default function Admin() {
   };
   const addSpecies = async () => {
     if (!state.accessToken) return;
-    if (!speciesForm.name.trim()) return showToast("종 이름을 입력해 주세요.", "err");
+    if (!speciesForm.name.trim())
+      return showToast("종 이름을 입력해 주세요.", "err");
 
     setSpeciesSubmitting(true);
     try {
       const created = await createSpecies(
         {
           name: speciesForm.name.trim(),
-          ...(speciesForm.category.trim() ? { category: speciesForm.category.trim() } : {}),
-          ...(speciesForm.careGuide.trim() ? { careGuide: speciesForm.careGuide.trim() } : {}),
+          ...(speciesForm.category.trim()
+            ? { category: speciesForm.category.trim() }
+            : {}),
+          ...(speciesForm.careGuide.trim()
+            ? { careGuide: speciesForm.careGuide.trim() }
+            : {}),
         },
         state.accessToken,
       );
@@ -303,7 +355,9 @@ export default function Admin() {
       showToast(`'${created.name}' 종을 추가했어요 🌱`);
     } catch (requestError) {
       showToast(
-        requestError instanceof ApiError ? requestError.message : "종 추가에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        requestError instanceof ApiError
+          ? requestError.message
+          : "종 추가에 실패했어요. 잠시 후 다시 시도해 주세요.",
         "err",
       );
     } finally {
@@ -312,7 +366,11 @@ export default function Admin() {
   };
   const openEditSpecies = (sp: PlantSpeciesData) => {
     setEditingSpecies(sp);
-    setEditForm({ name: sp.name, category: sp.category ?? "", careGuide: sp.careGuide ?? "" });
+    setEditForm({
+      name: sp.name,
+      category: sp.category ?? "",
+      careGuide: sp.careGuide ?? "",
+    });
   };
   const closeEditSpecies = () => {
     if (editSubmitting) return;
@@ -320,7 +378,8 @@ export default function Admin() {
   };
   const saveEditSpecies = async () => {
     if (!state.accessToken || !editingSpecies) return;
-    if (!editForm.name.trim()) return showToast("종 이름을 입력해 주세요.", "err");
+    if (!editForm.name.trim())
+      return showToast("종 이름을 입력해 주세요.", "err");
 
     setEditSubmitting(true);
     try {
@@ -328,17 +387,25 @@ export default function Admin() {
         editingSpecies.id,
         {
           name: editForm.name.trim(),
-          ...(editForm.category.trim() ? { category: editForm.category.trim() } : {}),
-          ...(editForm.careGuide.trim() ? { careGuide: editForm.careGuide.trim() } : {}),
+          ...(editForm.category.trim()
+            ? { category: editForm.category.trim() }
+            : {}),
+          ...(editForm.careGuide.trim()
+            ? { careGuide: editForm.careGuide.trim() }
+            : {}),
         },
         state.accessToken,
       );
-      setSpeciesList(speciesList.map((sp) => (sp.id === updated.id ? updated : sp)));
+      setSpeciesList(
+        speciesList.map((sp) => (sp.id === updated.id ? updated : sp)),
+      );
       showToast(`'${updated.name}' 정보를 수정했어요 🌱`);
       setEditingSpecies(null);
     } catch (requestError) {
       showToast(
-        requestError instanceof ApiError ? requestError.message : "종 수정에 실패했어요. 잠시 후 다시 시도해 주세요.",
+        requestError instanceof ApiError
+          ? requestError.message
+          : "종 수정에 실패했어요. 잠시 후 다시 시도해 주세요.",
         "err",
       );
     } finally {
@@ -408,38 +475,77 @@ export default function Admin() {
 
       {tab === "orders" && (
         <div className={PANEL}>
-          <div className={`grid grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr] ${HEAD}`}>
+          <div className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${HEAD}`}>
             <div>주문번호</div>
             <div>고객</div>
             <div>금액</div>
             <div>배송상태</div>
             <div className="text-right">처리</div>
           </div>
-          {orders.map((o) => {
-            const m = delMeta[o.delivery];
-            return (
-              <div
-                key={o.id}
-                className={`grid grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr] ${ROW}`}
-              >
-                <div className="font-bold">{o.no}</div>
-                <div className="text-[#6d7a68]">{o.user}</div>
-                <div className="font-bold text-gold-text">{fmt(o.amount)}P</div>
-                <div>
-                  <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
+          {ordersLoading ? (
+            <div className="px-[18px] py-10 text-center text-sm text-sub">
+              주문을 불러오고 있어요 🌱
+            </div>
+          ) : ordersError ? (
+            <div className="px-[18px] py-10 text-center text-sm text-sub">
+              {ordersError}
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="px-[18px] py-10 text-center text-sm text-sub">
+              주문이 없어요.
+            </div>
+          ) : (
+            orders.map((o) => {
+              const m = delMeta[o.deliveryStatus];
+              const cancelled = o.status === "CANCELLED";
+              const advanceable =
+                o.status === "PAID" &&
+                (o.deliveryStatus === "PREPARING" ||
+                  o.deliveryStatus === "SHIPPING");
+              return (
+                <div
+                  key={o.id}
+                  className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${ROW}`}
+                >
+                  <div className="font-bold">주문 #{o.id}</div>
+                  <div className="text-[#6d7a68]">{o.receiverName}</div>
+                  <div className="font-bold text-gold-text">
+                    {fmt(o.totalPoint)}P
+                  </div>
+                  <div>
+                    {cancelled ? (
+                      <span className={`${CHIP} bg-[#f0f1ea] text-[#8a8a8a]`}>
+                        취소됨
+                      </span>
+                    ) : (
+                      <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-1.5">
+                    {advanceable && (
+                      <button
+                        type="button"
+                        onClick={() => advOrder(o)}
+                        className={BTN_SOFT}
+                      >
+                        {m[2]}
+                      </button>
+                    )}
+                    {o.status === "PAID" &&
+                      o.deliveryStatus === "PREPARING" && (
+                        <button
+                          type="button"
+                          onClick={() => cancelOrderAsAdmin(o.id)}
+                          className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
+                        >
+                          취소
+                        </button>
+                      )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => advOrder(o.id)}
-                    className={BTN_SOFT}
-                  >
-                    {m[2]}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       )}
 
@@ -560,21 +666,27 @@ export default function Admin() {
             <div className="grid gap-2.5 sm:grid-cols-3">
               <input
                 value={speciesForm.name}
-                onChange={(e) => setSpeciesForm({ ...speciesForm, name: e.target.value })}
+                onChange={(e) =>
+                  setSpeciesForm({ ...speciesForm, name: e.target.value })
+                }
                 placeholder="이름 (예: 몬스테라)"
                 maxLength={100}
                 className="rounded-xl border-[1.5px] border-line px-[13px] py-2.5 text-sm outline-none"
               />
               <input
                 value={speciesForm.category}
-                onChange={(e) => setSpeciesForm({ ...speciesForm, category: e.target.value })}
+                onChange={(e) =>
+                  setSpeciesForm({ ...speciesForm, category: e.target.value })
+                }
                 placeholder="카테고리 (선택)"
                 maxLength={50}
                 className="rounded-xl border-[1.5px] border-line px-[13px] py-2.5 text-sm outline-none"
               />
               <input
                 value={speciesForm.careGuide}
-                onChange={(e) => setSpeciesForm({ ...speciesForm, careGuide: e.target.value })}
+                onChange={(e) =>
+                  setSpeciesForm({ ...speciesForm, careGuide: e.target.value })
+                }
                 placeholder="관리 가이드 (선택)"
                 maxLength={500}
                 className="rounded-xl border-[1.5px] border-line px-[13px] py-2.5 text-sm outline-none"
@@ -597,11 +709,17 @@ export default function Admin() {
               <div>관리 가이드</div>
             </div>
             {speciesLoading ? (
-              <div className="px-[18px] py-10 text-center text-sm text-sub">종 목록을 불러오고 있어요 🌱</div>
+              <div className="px-[18px] py-10 text-center text-sm text-sub">
+                종 목록을 불러오고 있어요 🌱
+              </div>
             ) : speciesError ? (
-              <div className="px-[18px] py-10 text-center text-sm text-sub">{speciesError}</div>
+              <div className="px-[18px] py-10 text-center text-sm text-sub">
+                {speciesError}
+              </div>
             ) : speciesList.length === 0 ? (
-              <div className="px-[18px] py-10 text-center text-sm text-sub">등록된 종이 없어요.</div>
+              <div className="px-[18px] py-10 text-center text-sm text-sub">
+                등록된 종이 없어요.
+              </div>
             ) : (
               speciesList.map((sp) => (
                 <button
@@ -612,7 +730,9 @@ export default function Admin() {
                 >
                   <div className="font-bold">{sp.name}</div>
                   <div className="text-[#6d7a68]">{sp.category ?? "-"}</div>
-                  <div className="truncate text-[#6d7a68]">{sp.careGuide ?? "-"}</div>
+                  <div className="truncate text-[#6d7a68]">
+                    {sp.careGuide ?? "-"}
+                  </div>
                 </button>
               ))
             )}
@@ -625,29 +745,42 @@ export default function Admin() {
           onClick={closeEditSpecies}
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-auto bg-[rgba(46,54,42,.4)] px-5 py-10"
         >
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[460px] animate-pop rounded-[22px] bg-white p-[26px]">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[460px] animate-pop rounded-[22px] bg-white p-[26px]"
+          >
             <h3 className="mb-5 text-xl font-extrabold">종 정보 수정 🌿</h3>
 
             <label className="text-[13px] font-bold text-[#6d7a68]">이름</label>
             <input
               value={editForm.name}
-              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              onChange={(e) =>
+                setEditForm({ ...editForm, name: e.target.value })
+              }
               maxLength={100}
               className="mb-4 mt-1.5 w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none"
             />
 
-            <label className="text-[13px] font-bold text-[#6d7a68]">카테고리</label>
+            <label className="text-[13px] font-bold text-[#6d7a68]">
+              카테고리
+            </label>
             <input
               value={editForm.category}
-              onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+              onChange={(e) =>
+                setEditForm({ ...editForm, category: e.target.value })
+              }
               maxLength={50}
               className="mb-4 mt-1.5 w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none"
             />
 
-            <label className="text-[13px] font-bold text-[#6d7a68]">관리 가이드</label>
+            <label className="text-[13px] font-bold text-[#6d7a68]">
+              관리 가이드
+            </label>
             <textarea
               value={editForm.careGuide}
-              onChange={(e) => setEditForm({ ...editForm, careGuide: e.target.value })}
+              onChange={(e) =>
+                setEditForm({ ...editForm, careGuide: e.target.value })
+              }
               maxLength={500}
               rows={5}
               className="mb-5 mt-1.5 w-full resize-none rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none"
