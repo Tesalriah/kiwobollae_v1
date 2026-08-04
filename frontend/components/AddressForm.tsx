@@ -1,0 +1,187 @@
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ApiError, getAddresses, UserAddress } from "@/lib/api";
+
+export interface AddressFields {
+  receiverName: string;
+  receiverPhone: string;
+  address: string;
+  addressDetail: string;
+}
+
+export const EMPTY_ADDRESS_FIELDS: AddressFields = {
+  receiverName: "",
+  receiverPhone: "",
+  address: "",
+  addressDetail: "",
+};
+
+const FIELD =
+  "w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none";
+const LABEL = "text-[13px] font-bold text-[#6d7a68]";
+
+/**
+ * 교환/주문 양쪽에서 공용으로 쓰는 배송지 입력.
+ * 저장된 배송지 목록을 불러와 선택하면 필드에 채워주고, 그 필드를 자유롭게 다시 고칠 수 있다.
+ * 여기서 고친 값은 이번 주문/교환의 스냅샷일 뿐 마이페이지 배송지북에는 반영되지 않는다.
+ */
+export default function AddressForm({
+  accessToken,
+  value,
+  onChange,
+}: {
+  accessToken: string | null;
+  value: AddressFields;
+  onChange: (fields: AddressFields) => void;
+}) {
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!accessToken) return;
+    setLoading(true);
+    setLoadError("");
+    getAddresses()
+      .then((list) => {
+        setAddresses(list);
+        const defaultAddress = list.find((a) => a.isDefault) || list[0];
+        if (defaultAddress) {
+          setSelectedId(defaultAddress.id);
+          onChange({
+            receiverName: defaultAddress.receiverName,
+            receiverPhone: defaultAddress.receiverPhone,
+            address: defaultAddress.address,
+            addressDetail: defaultAddress.addressDetail || "",
+          });
+        }
+      })
+      .catch((requestError) => {
+        setLoadError(
+          requestError instanceof ApiError
+            ? requestError.message
+            : "배송지를 불러오지 못했어요.",
+        );
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken]);
+
+  const selectSaved = (a: UserAddress) => {
+    setSelectedId(a.id);
+    onChange({
+      receiverName: a.receiverName,
+      receiverPhone: a.receiverPhone,
+      address: a.address,
+      addressDetail: a.addressDetail || "",
+    });
+  };
+
+  const startNew = () => {
+    setSelectedId(null);
+    onChange(EMPTY_ADDRESS_FIELDS);
+  };
+
+  return (
+    <div>
+      {loading && (
+        <div className="mb-3 text-sm text-sub">배송지를 불러오고 있어요…</div>
+      )}
+      {loadError && <div className="mb-3 text-sm text-danger">{loadError}</div>}
+
+      {!loading && addresses.length === 0 && (
+        <div className="mb-3.5 rounded-[14px] border-[1.5px] border-dashed border-[#cfe0b6] bg-white p-3.5 text-center text-sm text-sub">
+          등록된 배송지가 없어요. 아래에 새 배송지를 입력해 주세요.{" "}
+          <Link href="/my" className="font-bold text-brand-dark underline">
+            마이페이지에서 등록하기
+          </Link>
+        </div>
+      )}
+
+      {addresses.length > 0 && (
+        <div className="mb-3.5 flex flex-col gap-2">
+          {addresses.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => selectSaved(a)}
+              className={`cursor-pointer rounded-[14px] border-2 bg-white px-4 py-[13px] text-left ${
+                selectedId === a.id ? "border-brand" : "border-[#eceee5]"
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold">
+                {a.receiverName}
+                {a.isDefault && (
+                  <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] text-brand-dark">
+                    기본
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 text-[13.5px] text-sub">
+                {a.receiverPhone} · {a.address} {a.addressDetail}
+              </div>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={startNew}
+            className={`cursor-pointer rounded-[14px] border-2 border-dashed bg-white px-4 py-[13px] text-left text-sm font-bold text-sub ${
+              selectedId === null
+                ? "border-brand text-brand-dark"
+                : "border-[#eceee5]"
+            }`}
+          >
+            + 새 배송지로 입력
+          </button>
+        </div>
+      )}
+
+      <p className="mb-2 text-[12.5px] text-sub">
+        {selectedId === null
+          ? "이번에만 사용할 배송지를 입력해 주세요."
+          : "필요하면 아래 내용을 자유롭게 고쳐서 이번 배송에만 적용할 수 있어요."}
+      </p>
+
+      <label className={LABEL}>
+        받는 분 <span className="text-[#e5533b]">*</span>
+      </label>
+      <input
+        value={value.receiverName}
+        onChange={(e) => onChange({ ...value, receiverName: e.target.value })}
+        maxLength={50}
+        placeholder="이름"
+        className={`${FIELD} mb-3.5 mt-1.5`}
+      />
+      <label className={LABEL}>
+        연락처 <span className="text-[#e5533b]">*</span>
+      </label>
+      <input
+        value={value.receiverPhone}
+        onChange={(e) => onChange({ ...value, receiverPhone: e.target.value })}
+        maxLength={20}
+        placeholder="010-0000-0000"
+        className={`${FIELD} mb-3.5 mt-1.5`}
+      />
+      <label className={LABEL}>
+        주소 <span className="text-[#e5533b]">*</span>
+      </label>
+      <input
+        value={value.address}
+        onChange={(e) => onChange({ ...value, address: e.target.value })}
+        maxLength={200}
+        placeholder="도로명 주소"
+        className={`${FIELD} mb-3.5 mt-1.5`}
+      />
+      <label className={LABEL}>상세 주소</label>
+      <input
+        value={value.addressDetail}
+        onChange={(e) => onChange({ ...value, addressDetail: e.target.value })}
+        maxLength={100}
+        placeholder="동/호수 등"
+        className={`${FIELD} mb-3.5 mt-1.5`}
+      />
+    </div>
+  );
+}
