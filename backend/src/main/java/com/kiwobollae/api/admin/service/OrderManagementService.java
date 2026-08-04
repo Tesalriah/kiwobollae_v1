@@ -4,12 +4,16 @@ import com.kiwobollae.api.commerce.dto.response.OrderDetailResponse;
 import com.kiwobollae.api.commerce.dto.response.OrderItemResponse;
 import com.kiwobollae.api.commerce.dto.response.OrderResponse;
 import com.kiwobollae.api.commerce.entity.Order;
+import com.kiwobollae.api.commerce.entity.OrderItem;
 import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
 import com.kiwobollae.api.commerce.repository.OrderItemRepository;
 import com.kiwobollae.api.commerce.repository.OrderRepository;
+import com.kiwobollae.api.commerce.repository.ProductRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.point.entity.enums.PointRefType;
+import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -27,6 +31,8 @@ public class OrderManagementService {
 
 	private final OrderRepository orderRepository;
 	private final OrderItemRepository orderItemRepository;
+	private final ProductRepository productRepository;
+	private final WalletService walletService;
 
 	@Transactional(readOnly = true)
 	public Page<OrderResponse> getOrdersForAdmin(
@@ -68,6 +74,29 @@ public class OrderManagementService {
 		if (updated == 0) {
 			throwNotFoundOrInvalidState(id);
 		}
+		return OrderResponse.from(findOrderForAdmin(id));
+	}
+
+	@Transactional
+	public OrderResponse adminCancelOrder(Long id) {
+		Order order = findOrderForAdmin(id);
+		int updated = orderRepository.cancelIfMatches(
+				id, OrderStatus.CANCELLED, OrderStatus.PAID, DeliveryStatus.PREPARING, LocalDateTime.now(KST)
+		);
+		if (updated == 0) {
+			throwNotFoundOrInvalidState(id);
+		}
+
+		for (OrderItem item : orderItemRepository.findAllByOrderId(id)) {
+			productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+		}
+		walletService.restorePurchasePoints(
+				order.getUser().getId(),
+				order.getUsedFreePoint(),
+				order.getUsedPaidPoint(),
+				PointRefType.ORDER,
+				id
+		);
 		return OrderResponse.from(findOrderForAdmin(id));
 	}
 

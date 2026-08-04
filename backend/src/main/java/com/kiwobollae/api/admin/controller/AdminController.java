@@ -102,6 +102,12 @@ public class AdminController {
 		return ResponseEntity.ok(ApiResponse.success(orderManagementService.deliverOrder(id)));
 	}
 
+	@Operation(summary = "주문 취소", description = "배송 준비 중인 주문을 관리자가 취소합니다. 재고·포인트가 환급됩니다.")
+	@PatchMapping("/order/{id}/cancel")
+	public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(@PathVariable Long id) {
+		return ResponseEntity.ok(ApiResponse.success(orderManagementService.adminCancelOrder(id)));
+	}
+
 	@Operation(summary = "교환 신청 전체 목록 조회", description = "상태(선택)로 필터링해 전체 교환 신청을 조회합니다.")
 	@GetMapping("/exchanges")
 	public ResponseEntity<ApiResponse<Page<ExchangeOrderResponse>>> getExchanges(
