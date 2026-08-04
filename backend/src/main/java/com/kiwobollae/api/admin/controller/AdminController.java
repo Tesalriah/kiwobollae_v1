@@ -90,6 +90,18 @@ public class AdminController {
 		return ResponseEntity.ok(ApiResponse.success(orderManagementService.getOrderForAdmin(id)));
 	}
 
+	@Operation(summary = "주문 배송 시작 처리", description = "준비 중인 주문을 배송 중 상태로 전환합니다.")
+	@PatchMapping("/order/{id}/ship")
+	public ResponseEntity<ApiResponse<OrderResponse>> shipOrder(@PathVariable Long id) {
+		return ResponseEntity.ok(ApiResponse.success(orderManagementService.shipOrder(id)));
+	}
+
+	@Operation(summary = "주문 배송 완료 처리", description = "배송 중인 주문을 배송 완료 상태로 전환합니다.")
+	@PatchMapping("/order/{id}/deliver")
+	public ResponseEntity<ApiResponse<OrderResponse>> deliverOrder(@PathVariable Long id) {
+		return ResponseEntity.ok(ApiResponse.success(orderManagementService.deliverOrder(id)));
+	}
+
 	@Operation(summary = "교환 신청 전체 목록 조회", description = "상태(선택)로 필터링해 전체 교환 신청을 조회합니다.")
 	@GetMapping("/exchanges")
 	public ResponseEntity<ApiResponse<Page<ExchangeOrderResponse>>> getExchanges(

@@ -42,6 +42,28 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 			Pageable pageable
 	);
 
+	// PAID 상태에서만 배송 상태를 전이한다. 취소/확정된 주문은 status 조건에서 걸러진다.
+	@Modifying
+	@Query("update Order o set o.deliveryStatus = :newStatus "
+			+ "where o.id = :id and o.status = :paid and o.deliveryStatus = :expectedStatus")
+	int updateDeliveryStatusIfMatches(
+			@Param("id") Long id,
+			@Param("newStatus") DeliveryStatus newStatus,
+			@Param("paid") OrderStatus paid,
+			@Param("expectedStatus") DeliveryStatus expectedStatus
+	);
+
+	@Modifying
+	@Query("update Order o set o.deliveryStatus = :delivered, o.deliveredAt = :deliveredAt "
+			+ "where o.id = :id and o.status = :paid and o.deliveryStatus = :expectedStatus")
+	int deliverIfMatches(
+			@Param("id") Long id,
+			@Param("delivered") DeliveryStatus delivered,
+			@Param("deliveredAt") LocalDateTime deliveredAt,
+			@Param("paid") OrderStatus paid,
+			@Param("expectedStatus") DeliveryStatus expectedStatus
+	);
+
 	// PAID∧PREPARING일 때만 취소 허용. 배송이 시작됐거나 이미 취소/확정된 주문은 0건 반환.
 	@Modifying
 	@Query("update Order o set o.status = :cancelled, o.cancelledAt = :cancelledAt "
