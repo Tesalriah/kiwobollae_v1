@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ApiError, getAddresses, UserAddress } from "@/lib/api";
+import { embedAddressSearch } from "@/lib/daumPostcode";
 
 export interface AddressFields {
   receiverName: string;
@@ -59,6 +60,27 @@ export default function AddressForm({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const [postcodeError, setPostcodeError] = useState("");
+  const postcodeContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!postcodeOpen || !postcodeContainerRef.current) return;
+    embedAddressSearch(postcodeContainerRef.current, ({ zipCode, address }) => {
+      onChange({ ...value, zipCode, address });
+      setPostcodeOpen(false);
+    }).catch(() =>
+      setPostcodeError(
+        "주소 검색을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postcodeOpen]);
+
+  const searchAddress = () => {
+    setPostcodeError("");
+    setPostcodeOpen(true);
+  };
 
   useEffect(() => {
     if (!accessToken) return;
@@ -163,7 +185,7 @@ export default function AddressForm({
       <p className="mb-2 text-[12.5px] text-sub">
         {selectedId === null
           ? "이번에만 사용할 배송지를 입력해 주세요."
-          : "필요하면 아래 내용을 자유롭게 고쳐서 이번 배송에만 적용할 수 있어요."}
+          : "받는 분/연락처/상세 주소는 이번 배송에만 자유롭게 고칠 수 있고, 주소를 바꾸려면 다시 검색해 주세요."}
       </p>
 
       <label className={LABEL}>
@@ -204,25 +226,29 @@ export default function AddressForm({
       <label className={LABEL}>
         우편번호 <span className="text-[#e5533b]">*</span>
       </label>
-      <input
-        value={value.zipCode}
-        onChange={(e) =>
-          onChange({ ...value, zipCode: e.target.value.replace(/[^0-9]/g, "") })
-        }
-        maxLength={10}
-        inputMode="numeric"
-        placeholder="12345"
-        className={`${FIELD} mb-3.5 mt-1.5`}
-      />
+      <div className="mb-3.5 mt-1.5 flex gap-2">
+        <input
+          value={value.zipCode}
+          readOnly
+          placeholder="주소 검색으로 입력돼요"
+          className={`${FIELD} bg-[#F8FAF3]`}
+        />
+        <button
+          type="button"
+          onClick={searchAddress}
+          className="w-[104px] shrink-0 cursor-pointer whitespace-nowrap rounded-xl border-[1.5px] border-line bg-white text-[13px] font-bold text-[#5b6a54] transition-colors duration-150 hover:bg-brand-soft hover:text-brand-dark"
+        >
+          주소 검색
+        </button>
+      </div>
       <label className={LABEL}>
         주소 <span className="text-[#e5533b]">*</span>
       </label>
       <input
         value={value.address}
-        onChange={(e) => onChange({ ...value, address: e.target.value })}
-        maxLength={200}
-        placeholder="도로명 주소"
-        className={`${FIELD} mb-3.5 mt-1.5`}
+        readOnly
+        placeholder="주소 검색 버튼으로 입력해 주세요"
+        className={`${FIELD} mb-3.5 mt-1.5 bg-[#F8FAF3]`}
       />
       <label className={LABEL}>상세 주소</label>
       <input
@@ -232,6 +258,28 @@ export default function AddressForm({
         placeholder="동/호수 등"
         className={`${FIELD} mb-3.5 mt-1.5`}
       />
+
+      {postcodeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="flex max-h-[80vh] w-full max-w-[480px] flex-col overflow-hidden rounded-[20px] bg-white shadow-card">
+            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+              <h2 className="text-base font-extrabold">주소 검색</h2>
+              <button
+                type="button"
+                onClick={() => setPostcodeOpen(false)}
+                className="cursor-pointer text-sm font-bold text-sub"
+              >
+                닫기
+              </button>
+            </div>
+            {postcodeError ? (
+              <div className="p-5 text-sm text-danger">{postcodeError}</div>
+            ) : (
+              <div ref={postcodeContainerRef} className="h-[450px] w-full" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
