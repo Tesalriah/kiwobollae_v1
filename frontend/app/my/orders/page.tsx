@@ -178,6 +178,19 @@ export default function Orders() {
                   ))}
                 </div>
 
+                <div className="mb-3.5 rounded-xl bg-[#F8FAF3] px-3.5 py-3 text-[13px]">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold text-ink">
+                    <span className="material-symbols-outlined text-[16px] text-sub">local_shipping</span>
+                    배송지
+                  </div>
+                  <div className="text-sub">
+                    {order.receiverName} · {order.receiverPhone}
+                  </div>
+                  <div className="text-sub">
+                    {order.zipCode && `[${order.zipCode}] `}{order.address} {order.addressDetail}
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-[#f2f3ec] pt-3.5">
                   <div className="flex items-center gap-1.5 font-extrabold text-gold-text">
                     총 <PointPrice value={order.totalPoint} size="sm" />
