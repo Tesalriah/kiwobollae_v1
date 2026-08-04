@@ -1,6 +1,7 @@
 "use client";
 import { ApiError } from "@/lib/api";
 import AdminPointAdjustmentPanel from "@/features/point/AdminPointAdjustmentPanel";
+import { formatPhone } from "@/components/AddressForm";
 import {
   adminCancelExchange,
   deliverExchange,
@@ -26,7 +27,13 @@ import { fmt, useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useEffect, useState } from "react";
 
-const CANCEL_REASON_OPTIONS = ["품절", "고객 요청", "배송 불가", "결제 오류", "기타"];
+const CANCEL_REASON_OPTIONS = [
+  "품절",
+  "고객 요청",
+  "배송 불가",
+  "결제 오류",
+  "기타",
+];
 
 const delMeta: Record<string, [string, string, string]> = {
   PREPARING: ["준비중", "bg-[#FFF3CC] text-gold-text", "배송 시작"],
@@ -277,9 +284,9 @@ export default function Admin() {
       );
     }
   };
-  const [cancelOrderTargetId, setCancelOrderTargetId] = useState<
-    number | null
-  >(null);
+  const [cancelOrderTargetId, setCancelOrderTargetId] = useState<number | null>(
+    null,
+  );
   const [cancelReasonOption, setCancelReasonOption] = useState(
     CANCEL_REASON_OPTIONS[0],
   );
@@ -311,7 +318,9 @@ export default function Admin() {
       setOrders((prev) =>
         prev.map((o) => (o.id === cancelOrderTargetId ? updated : o)),
       );
-      showToast("주문을 취소하고 재고·포인트를 복원했어요. 취소 사유가 고객에게 알림으로 전달돼요.");
+      showToast(
+        "주문을 취소하고 재고·포인트를 복원했어요. 취소 사유가 고객에게 알림으로 전달돼요.",
+      );
       setCancelOrderTargetId(null);
     } catch (requestError) {
       showToast(
@@ -537,44 +546,55 @@ export default function Admin() {
                 (o.deliveryStatus === "PREPARING" ||
                   o.deliveryStatus === "SHIPPING");
               return (
-                <div
-                  key={o.id}
-                  className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${ROW}`}
-                >
-                  <div className="font-bold">주문 #{o.id}</div>
-                  <div className="text-[#6d7a68]">{o.receiverName}</div>
-                  <div className="font-bold text-gold-text">
-                    {fmt(o.totalPoint)}P
-                  </div>
-                  <div>
-                    {cancelled ? (
-                      <span className={`${CHIP} bg-[#f0f1ea] text-[#8a8a8a]`}>
-                        취소됨
-                      </span>
-                    ) : (
-                      <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
-                    )}
-                  </div>
-                  <div className="flex justify-end gap-1.5">
-                    {advanceable && (
-                      <button
-                        type="button"
-                        onClick={() => advOrder(o)}
-                        className={BTN_SOFT}
-                      >
-                        {m[2]}
-                      </button>
-                    )}
-                    {o.status === "PAID" &&
-                      o.deliveryStatus === "PREPARING" && (
+                <div key={o.id} className="border-t border-[#f2f3ec]">
+                  <div
+                    className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${ROW} border-t-0 pb-2`}
+                  >
+                    <div className="font-bold">주문 #{o.id}</div>
+                    <div className="text-[#6d7a68]">{o.receiverName}</div>
+                    <div className="font-bold text-gold-text">
+                      {fmt(o.totalPoint)}P
+                    </div>
+                    <div>
+                      {cancelled ? (
+                        <span className={`${CHIP} bg-[#f0f1ea] text-[#8a8a8a]`}>
+                          취소됨
+                        </span>
+                      ) : (
+                        <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
+                      )}
+                    </div>
+                    <div className="flex justify-end gap-1.5">
+                      {advanceable && (
                         <button
                           type="button"
-                          onClick={() => openCancelOrder(o.id)}
-                          className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
+                          onClick={() => advOrder(o)}
+                          className={BTN_SOFT}
                         >
-                          취소
+                          {m[2]}
                         </button>
                       )}
+                      {o.status === "PAID" &&
+                        o.deliveryStatus === "PREPARING" && (
+                          <button
+                            type="button"
+                            onClick={() => openCancelOrder(o.id)}
+                            className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
+                          >
+                            취소
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                  <div className="px-[18px] pb-3.5 text-[12.5px] text-sub">
+                    {formatPhone(o.receiverPhone)} ·{" "}
+                    {o.zipCode && `[${o.zipCode}] `}
+                    {o.address} {o.addressDetail}
+                    {cancelled && o.cancelReason && (
+                      <span className="ml-2 font-semibold text-[#b5502f]">
+                        취소 사유: {o.cancelReason}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
