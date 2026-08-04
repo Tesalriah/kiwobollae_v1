@@ -81,6 +81,7 @@ export interface OrderData {
   orderedAt: string;
   deliveredAt: string | null;
   cancelledAt: string | null;
+  cancelReason: string | null;
   confirmedAt: string | null;
   confirmedBy: ConfirmedBy | null;
   cancellable: boolean;
@@ -200,9 +201,14 @@ export function deliverOrderForAdmin(orderId: number, accessToken: string): Prom
   });
 }
 
-export function cancelOrderForAdmin(orderId: number, accessToken: string): Promise<OrderData> {
+export function cancelOrderForAdmin(
+  orderId: number,
+  reason: string | undefined,
+  accessToken: string,
+): Promise<OrderData> {
   return request<OrderData>(`/api/v1/admin/order/${orderId}/cancel`, {
     method: 'PATCH',
     accessToken,
+    body: JSON.stringify({ reason }),
   });
 }

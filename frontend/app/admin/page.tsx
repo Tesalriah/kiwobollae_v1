@@ -26,6 +26,8 @@ import { fmt, useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useEffect, useState } from "react";
 
+const CANCEL_REASON_OPTIONS = ["품절", "고객 요청", "배송 불가", "결제 오류", "기타"];
+
 const delMeta: Record<string, [string, string, string]> = {
   PREPARING: ["준비중", "bg-[#FFF3CC] text-gold-text", "배송 시작"],
   SHIPPING: ["배송중", "bg-[#E3F0FA] text-[#3a76a8]", "배송 완료"],
@@ -275,12 +277,42 @@ export default function Admin() {
       );
     }
   };
-  const cancelOrderAsAdmin = async (id: number) => {
-    if (!state.accessToken) return;
+  const [cancelOrderTargetId, setCancelOrderTargetId] = useState<
+    number | null
+  >(null);
+  const [cancelReasonOption, setCancelReasonOption] = useState(
+    CANCEL_REASON_OPTIONS[0],
+  );
+  const [cancelReasonCustom, setCancelReasonCustom] = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
+  const openCancelOrder = (id: number) => {
+    setCancelOrderTargetId(id);
+    setCancelReasonOption(CANCEL_REASON_OPTIONS[0]);
+    setCancelReasonCustom("");
+  };
+  const closeCancelOrder = () => {
+    if (cancelSubmitting) return;
+    setCancelOrderTargetId(null);
+  };
+  const submitCancelOrder = async () => {
+    if (!state.accessToken || cancelOrderTargetId == null) return;
+    const reason =
+      cancelReasonOption === "기타"
+        ? cancelReasonCustom.trim()
+        : cancelReasonOption;
+    setCancelSubmitting(true);
     try {
-      const updated = await cancelOrderForAdmin(id, state.accessToken);
-      setOrders((prev) => prev.map((o) => (o.id === id ? updated : o)));
-      showToast("주문을 취소하고 재고·포인트를 복원했어요.");
+      const updated = await cancelOrderForAdmin(
+        cancelOrderTargetId,
+        reason || undefined,
+        state.accessToken,
+      );
+      setOrders((prev) =>
+        prev.map((o) => (o.id === cancelOrderTargetId ? updated : o)),
+      );
+      showToast("주문을 취소하고 재고·포인트를 복원했어요. 취소 사유가 고객에게 알림으로 전달돼요.");
+      setCancelOrderTargetId(null);
     } catch (requestError) {
       showToast(
         requestError instanceof ApiError
@@ -288,6 +320,8 @@ export default function Admin() {
           : "취소에 실패했어요. 잠시 후 다시 시도해 주세요.",
         "err",
       );
+    } finally {
+      setCancelSubmitting(false);
     }
   };
   const advEx = async (x: ExchangeOrderData) => {
@@ -535,7 +569,7 @@ export default function Admin() {
                       o.deliveryStatus === "PREPARING" && (
                         <button
                           type="button"
-                          onClick={() => cancelOrderAsAdmin(o.id)}
+                          onClick={() => openCancelOrder(o.id)}
                           className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
                         >
                           취소
@@ -802,6 +836,70 @@ export default function Admin() {
                 className="flex-1 cursor-pointer rounded-[13px] border-[1.5px] border-line bg-white p-3.5 text-base font-bold text-[#6d7a68] disabled:opacity-60"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOrderTargetId != null && (
+        <div
+          onClick={closeCancelOrder}
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-auto bg-[rgba(46,54,42,.4)] px-5 py-10"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[420px] animate-pop rounded-[22px] bg-white p-[26px]"
+          >
+            <h3 className="mb-1.5 text-xl font-extrabold">주문 취소</h3>
+            <p className="mb-5 text-[13px] text-sub">
+              선택한 사유가 고객 알림에 그대로 표시돼요.
+            </p>
+
+            <label className="text-[13px] font-bold text-[#6d7a68]">
+              취소 사유
+            </label>
+            <select
+              value={cancelReasonOption}
+              onChange={(e) => setCancelReasonOption(e.target.value)}
+              className="mb-4 mt-1.5 w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none"
+            >
+              {CANCEL_REASON_OPTIONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+
+            {cancelReasonOption === "기타" && (
+              <input
+                value={cancelReasonCustom}
+                onChange={(e) => setCancelReasonCustom(e.target.value)}
+                maxLength={200}
+                placeholder="사유를 입력해 주세요"
+                className="mb-4 mt-1.5 w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none"
+              />
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={submitCancelOrder}
+                disabled={
+                  cancelSubmitting ||
+                  (cancelReasonOption === "기타" && !cancelReasonCustom.trim())
+                }
+                className="flex-1 cursor-pointer rounded-[13px] bg-[#b5502f] p-3.5 text-base font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancelSubmitting ? "취소 처리 중..." : "주문 취소"}
+              </button>
+              <button
+                type="button"
+                onClick={closeCancelOrder}
+                disabled={cancelSubmitting}
+                className="flex-1 cursor-pointer rounded-[13px] border-[1.5px] border-line bg-white p-3.5 text-base font-bold text-[#6d7a68] disabled:opacity-60"
+              >
+                닫기
               </button>
             </div>
           </div>
