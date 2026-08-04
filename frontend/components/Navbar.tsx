@@ -211,6 +211,9 @@ export default function Navbar() {
                     <Link href="/my/orders" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors duration-150 hover:bg-brand-soft hover:text-ink">
                       주문 내역
                     </Link>
+                    <Link href="/my/exchanges" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors duration-150 hover:bg-brand-soft hover:text-ink">
+                      교환 내역
+                    </Link>
                     <Link href="/my/points" onClick={() => setProfileOpen(false)} className="block px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors duration-150 hover:bg-brand-soft hover:text-ink">
                       포인트 내역
                     </Link>
