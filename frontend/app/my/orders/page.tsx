@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api';
 import { useStore, fmt } from '@/lib/store';
 import { useUI } from '@/lib/ui';
 import PointPrice from '@/components/PointPrice';
+import { formatPhone } from '@/components/AddressForm';
 import {
   cancelOrder,
   confirmOrder,
@@ -184,7 +185,7 @@ export default function Orders() {
                     배송지
                   </div>
                   <div className="text-sub">
-                    {order.receiverName} · {order.receiverPhone}
+                    {order.receiverName} · {formatPhone(order.receiverPhone)}
                   </div>
                   <div className="text-sub">
                     {order.zipCode && `[${order.zipCode}] `}{order.address} {order.addressDetail}

@@ -38,6 +38,17 @@ export function isCompleteAddress(fields: AddressFields): boolean {
   );
 }
 
+// 하이픈 없이 저장된 번호를 화면 표시용으로만 010-1234-5678 / 010-123-4567 형태로 나눈다.
+// 패턴에 안 맞는 값(레거시 데이터 등)은 원본 그대로 보여준다.
+export function formatPhone(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, "");
+  if (digits.length === 11)
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10)
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return phone;
+}
+
 const FIELD =
   "w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none";
 const LABEL = "text-[13px] font-bold text-[#6d7a68]";
@@ -164,7 +175,8 @@ export default function AddressForm({
                 )}
               </div>
               <div className="mt-1 text-[13.5px] text-sub">
-                {a.receiverPhone} · [{a.zipCode}] {a.address} {a.addressDetail}
+                {formatPhone(a.receiverPhone)} · [{a.zipCode}] {a.address}{" "}
+                {a.addressDetail}
               </div>
             </button>
           ))}

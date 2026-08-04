@@ -6,6 +6,7 @@ import { CardData, getMyCards } from '@/lib/card-api';
 import { cancelExchange, ExchangeOrderData, ExchangeStatus, getMyExchanges } from '@/lib/exchange-api';
 import { useStore } from '@/lib/store';
 import { useUI } from '@/lib/ui';
+import { formatPhone } from '@/components/AddressForm';
 
 const STEPS: [ExchangeStatus, string][] = [['REQUESTED', '신청됨'], ['PREPARING', '준비중'], ['SHIPPING', '배송중'], ['DELIVERED', '배송완료']];
 
@@ -175,7 +176,7 @@ export default function MyExchanges() {
                     배송지
                   </div>
                   <div className="text-sub">
-                    {x.receiverName} · {x.receiverPhone}
+                    {x.receiverName} · {formatPhone(x.receiverPhone)}
                   </div>
                   <div className="text-sub">
                     {x.zipCode && `[${x.zipCode}] `}{x.address} {x.addressDetail}
