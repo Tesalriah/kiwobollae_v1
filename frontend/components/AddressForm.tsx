@@ -93,6 +93,11 @@ export default function AddressForm({
     setPostcodeOpen(true);
   };
 
+  // accessToken이 재발급 등으로 다시 바뀌어도(예: 응답 대기 중 토큰 리이슈) 목록을 다시
+  // 불러오는 것 자체는 괜찮지만, 그때마다 기본 배송지로 덮어쓰면 사용자가 이미 고르거나
+  // 입력 중인 값이 통째로 사라진다. 최초 1회만 자동으로 채운다.
+  const appliedDefaultRef = useRef(false);
+
   useEffect(() => {
     if (!accessToken) return;
     setLoading(true);
@@ -100,6 +105,8 @@ export default function AddressForm({
     getAddresses()
       .then((list) => {
         setAddresses(list);
+        if (appliedDefaultRef.current) return;
+        appliedDefaultRef.current = true;
         const defaultAddress = list.find((a) => a.isDefault) || list[0];
         if (defaultAddress) {
           setSelectedId(defaultAddress.id);
