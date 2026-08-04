@@ -22,6 +22,26 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 	@Query("select o from Order o where o.id = :id and o.user.id = :userId")
 	Optional<Order> findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
+	// 관리자용 전체 목록 조회. 각 필터는 null이면 조건에서 제외된다.
+	@Query(value = "select o from Order o where (:status is null or o.status = :status) "
+			+ "and (:deliveryStatus is null or o.deliveryStatus = :deliveryStatus) "
+			+ "and (:userId is null or o.user.id = :userId) "
+			+ "and (:from is null or o.orderedAt >= :from) "
+			+ "and (:to is null or o.orderedAt <= :to)",
+			countQuery = "select count(o) from Order o where (:status is null or o.status = :status) "
+					+ "and (:deliveryStatus is null or o.deliveryStatus = :deliveryStatus) "
+					+ "and (:userId is null or o.user.id = :userId) "
+					+ "and (:from is null or o.orderedAt >= :from) "
+					+ "and (:to is null or o.orderedAt <= :to)")
+	Page<Order> search(
+			@Param("status") OrderStatus status,
+			@Param("deliveryStatus") DeliveryStatus deliveryStatus,
+			@Param("userId") Long userId,
+			@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to,
+			Pageable pageable
+	);
+
 	// PAID∧PREPARING일 때만 취소 허용. 배송이 시작됐거나 이미 취소/확정된 주문은 0건 반환.
 	@Modifying
 	@Query("update Order o set o.status = :cancelled, o.cancelledAt = :cancelledAt "

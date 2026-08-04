@@ -1,10 +1,15 @@
 package com.kiwobollae.api.admin.controller;
 
 import com.kiwobollae.api.admin.service.ExchangeManagementService;
+import com.kiwobollae.api.admin.service.OrderManagementService;
 import com.kiwobollae.api.admin.service.PlantSpeciesManagementService;
 import com.kiwobollae.api.commerce.dto.request.ExchangeCancelRequest;
 import com.kiwobollae.api.commerce.dto.response.ExchangeOrderResponse;
+import com.kiwobollae.api.commerce.dto.response.OrderDetailResponse;
+import com.kiwobollae.api.commerce.dto.response.OrderResponse;
+import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.ExchangeStatus;
+import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
 import com.kiwobollae.api.content.dto.request.PlantSpeciesRequest;
 import com.kiwobollae.api.content.dto.response.PlantSpeciesResponse;
 import com.kiwobollae.api.global.common.ApiResponse;
@@ -12,12 +17,14 @@ import com.kiwobollae.api.global.common.ApiVersion;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -43,6 +50,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
 	private final ExchangeManagementService exchangeManagementService;
+	private final OrderManagementService orderManagementService;
 	private final PlantSpeciesManagementService plantSpeciesManagementService;
 
 	@Operation(summary = "식물 종 추가", description = "새로운 식물 종을 등록합니다.")
@@ -59,6 +67,27 @@ public class AdminController {
 			@PathVariable Long id,
 			@Valid @RequestBody PlantSpeciesRequest request) {
 		return ResponseEntity.ok(ApiResponse.success(plantSpeciesManagementService.updateSpecies(id, request)));
+	}
+
+	@Operation(summary = "주문 전체 목록 조회", description = "주문 상태·배송 상태·유저·기간(선택)으로 필터링해 전체 주문을 조회합니다.")
+	@GetMapping("/order")
+	public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrders(
+			@RequestParam(required = false) OrderStatus status,
+			@RequestParam(required = false) DeliveryStatus deliveryStatus,
+			@RequestParam(required = false) Long userId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+			@ParameterObject @PageableDefault(size = 20, sort = "orderedAt", direction = Sort.Direction.DESC)
+			Pageable pageable) {
+		return ResponseEntity.ok(ApiResponse.success(
+				orderManagementService.getOrdersForAdmin(status, deliveryStatus, userId, from, to, pageable)
+		));
+	}
+
+	@Operation(summary = "주문 상세 조회", description = "주문자 정보, 배송지, 상품 목록, 포인트 사용 내역을 포함한 주문 상세를 조회합니다.")
+	@GetMapping("/order/{id}")
+	public ResponseEntity<ApiResponse<OrderDetailResponse>> getOrder(@PathVariable Long id) {
+		return ResponseEntity.ok(ApiResponse.success(orderManagementService.getOrderForAdmin(id)));
 	}
 
 	@Operation(summary = "교환 신청 전체 목록 조회", description = "상태(선택)로 필터링해 전체 교환 신청을 조회합니다.")
