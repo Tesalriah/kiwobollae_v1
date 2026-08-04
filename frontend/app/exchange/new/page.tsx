@@ -7,7 +7,7 @@ import { CardData, getCard } from '@/lib/card-api';
 import { requestExchange } from '@/lib/exchange-api';
 import { useStore } from '@/lib/store';
 import { useUI } from '@/lib/ui';
-import AddressForm, { AddressFields, EMPTY_ADDRESS_FIELDS } from '@/components/AddressForm';
+import AddressForm, { AddressFields, EMPTY_ADDRESS_FIELDS, isValidPhone } from '@/components/AddressForm';
 
 function ExchangeNewInner() {
   const params = useSearchParams();
@@ -90,7 +90,9 @@ function ExchangeNewInner() {
   const submit = async () => {
     if (!state.accessToken) return showToast('로그인이 필요해요.', 'err');
     if (!addressFields.receiverName.trim()) return showToast('받는 분 이름을 입력해 주세요.', 'err');
-    if (!addressFields.receiverPhone.trim()) return showToast('연락처를 입력해 주세요.', 'err');
+    if (!isValidPhone(addressFields.receiverPhone)) {
+      return showToast('연락처를 010 또는 011로 시작하는 숫자 9~11자리로 입력해 주세요.', 'err');
+    }
     if (!addressFields.address.trim()) return showToast('주소를 입력해 주세요.', 'err');
 
     setSubmitting(true);

@@ -17,6 +17,23 @@ export const EMPTY_ADDRESS_FIELDS: AddressFields = {
   addressDetail: "",
 };
 
+// 백엔드 UserAddress 검증(하이픈 없이 010/011 + 숫자 7~8자리)과 동일한 규칙.
+// Order/ExchangeOrder는 이 형식을 서버에서 강제하지 않으므로, 자유 입력 경로에서
+// 잘못된 형식이 그대로 저장되지 않도록 프론트에서 검증한다.
+const PHONE_PATTERN = /^(010|011)\d{7,8}$/;
+
+export function isValidPhone(phone: string): boolean {
+  return PHONE_PATTERN.test(phone);
+}
+
+export function isCompleteAddress(fields: AddressFields): boolean {
+  return (
+    fields.receiverName.trim() !== "" &&
+    isValidPhone(fields.receiverPhone) &&
+    fields.address.trim() !== ""
+  );
+}
+
 const FIELD =
   "w-full rounded-xl border-[1.5px] border-line px-[13px] py-3 outline-none";
 const LABEL = "text-[13px] font-bold text-[#6d7a68]";
@@ -159,11 +176,26 @@ export default function AddressForm({
       </label>
       <input
         value={value.receiverPhone}
-        onChange={(e) => onChange({ ...value, receiverPhone: e.target.value })}
-        maxLength={20}
-        placeholder="010-0000-0000"
-        className={`${FIELD} mb-3.5 mt-1.5`}
+        onChange={(e) =>
+          onChange({
+            ...value,
+            receiverPhone: e.target.value.replace(/[^0-9]/g, ""),
+          })
+        }
+        maxLength={11}
+        inputMode="numeric"
+        placeholder="01000000000 (하이픈 없이 숫자만)"
+        className={`${FIELD} mt-1.5 ${
+          value.receiverPhone !== "" && !isValidPhone(value.receiverPhone)
+            ? "mb-1.5 border-danger"
+            : "mb-3.5"
+        }`}
       />
+      {value.receiverPhone !== "" && !isValidPhone(value.receiverPhone) && (
+        <p className="mb-3.5 text-[12.5px] text-danger">
+          010 또는 011로 시작하는 숫자 9~11자리로 입력해 주세요.
+        </p>
+      )}
       <label className={LABEL}>
         주소 <span className="text-[#e5533b]">*</span>
       </label>

@@ -6,7 +6,7 @@ import { ApiError } from '@/lib/api';
 import { useStore, fmt } from '@/lib/store';
 import { useUI } from '@/lib/ui';
 import PointPrice from '@/components/PointPrice';
-import AddressForm, { AddressFields, EMPTY_ADDRESS_FIELDS } from '@/components/AddressForm';
+import AddressForm, { AddressFields, EMPTY_ADDRESS_FIELDS, isCompleteAddress } from '@/components/AddressForm';
 import { CartItemData, createOrder, getCart, OrderDetailData } from '@/lib/order-api';
 import {
   calculateOrderPointUsage,
@@ -76,10 +76,7 @@ function CheckoutInner() {
     freePoint: state.wallet.free,
     requestedFreePoint,
   });
-  const addressValid =
-    addressFields.receiverName.trim() !== '' &&
-    addressFields.receiverPhone.trim() !== '' &&
-    addressFields.address.trim() !== '';
+  const addressValid = isCompleteAddress(addressFields);
 
   const place = async () => {
     if (ordering || !pointUsage.valid || !addressValid) return;
