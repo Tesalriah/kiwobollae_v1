@@ -93,6 +93,7 @@ function ExchangeNewInner() {
     if (!isValidPhone(addressFields.receiverPhone)) {
       return showToast('연락처를 010 또는 011로 시작하는 숫자 9~11자리로 입력해 주세요.', 'err');
     }
+    if (!addressFields.zipCode.trim()) return showToast('우편번호를 입력해 주세요.', 'err');
     if (!addressFields.address.trim()) return showToast('주소를 입력해 주세요.', 'err');
 
     setSubmitting(true);
@@ -102,6 +103,7 @@ function ExchangeNewInner() {
           cardId: card.id,
           receiverName: addressFields.receiverName.trim(),
           receiverPhone: addressFields.receiverPhone.trim(),
+          zipCode: addressFields.zipCode.trim(),
           address: addressFields.address.trim(),
           addressDetail: addressFields.addressDetail.trim() || undefined,
         },

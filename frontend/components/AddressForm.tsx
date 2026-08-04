@@ -6,6 +6,7 @@ import { ApiError, getAddresses, UserAddress } from "@/lib/api";
 export interface AddressFields {
   receiverName: string;
   receiverPhone: string;
+  zipCode: string;
   address: string;
   addressDetail: string;
 }
@@ -13,6 +14,7 @@ export interface AddressFields {
 export const EMPTY_ADDRESS_FIELDS: AddressFields = {
   receiverName: "",
   receiverPhone: "",
+  zipCode: "",
   address: "",
   addressDetail: "",
 };
@@ -30,6 +32,7 @@ export function isCompleteAddress(fields: AddressFields): boolean {
   return (
     fields.receiverName.trim() !== "" &&
     isValidPhone(fields.receiverPhone) &&
+    fields.zipCode.trim() !== "" &&
     fields.address.trim() !== ""
   );
 }
@@ -70,6 +73,7 @@ export default function AddressForm({
           onChange({
             receiverName: defaultAddress.receiverName,
             receiverPhone: defaultAddress.receiverPhone,
+            zipCode: defaultAddress.zipCode,
             address: defaultAddress.address,
             addressDetail: defaultAddress.addressDetail || "",
           });
@@ -91,6 +95,7 @@ export default function AddressForm({
     onChange({
       receiverName: a.receiverName,
       receiverPhone: a.receiverPhone,
+      zipCode: a.zipCode,
       address: a.address,
       addressDetail: a.addressDetail || "",
     });
@@ -137,7 +142,7 @@ export default function AddressForm({
                 )}
               </div>
               <div className="mt-1 text-[13.5px] text-sub">
-                {a.receiverPhone} · {a.address} {a.addressDetail}
+                {a.receiverPhone} · [{a.zipCode}] {a.address} {a.addressDetail}
               </div>
             </button>
           ))}
@@ -196,6 +201,19 @@ export default function AddressForm({
           010 또는 011로 시작하는 숫자 9~11자리로 입력해 주세요.
         </p>
       )}
+      <label className={LABEL}>
+        우편번호 <span className="text-[#e5533b]">*</span>
+      </label>
+      <input
+        value={value.zipCode}
+        onChange={(e) =>
+          onChange({ ...value, zipCode: e.target.value.replace(/[^0-9]/g, "") })
+        }
+        maxLength={10}
+        inputMode="numeric"
+        placeholder="12345"
+        className={`${FIELD} mb-3.5 mt-1.5`}
+      />
       <label className={LABEL}>
         주소 <span className="text-[#e5533b]">*</span>
       </label>

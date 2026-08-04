@@ -89,6 +89,7 @@ function CheckoutInner() {
           requestedFreePoint,
           receiverName: addressFields.receiverName.trim(),
           receiverPhone: addressFields.receiverPhone.trim(),
+          zipCode: addressFields.zipCode.trim(),
           address: addressFields.address.trim(),
           addressDetail: addressFields.addressDetail.trim() || undefined,
         },
