@@ -13,8 +13,10 @@ import {
 import {
   cancelOrderForAdmin,
   deliverOrderForAdmin,
+  getOrderForAdmin,
   getOrdersForAdmin,
   OrderData,
+  OrderItemData,
   shipOrderForAdmin,
 } from "@/lib/order-api";
 import {
@@ -83,6 +85,9 @@ export default function Admin() {
   const [tab, setTab] = useState("orders");
   const { state, hydrated } = useStore();
   const [orders, setOrders] = useState<OrderData[]>([]);
+  const [orderItemsById, setOrderItemsById] = useState<
+    Record<number, OrderItemData[]>
+  >({});
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState("");
 
@@ -95,7 +100,19 @@ export default function Admin() {
     setOrdersError("");
 
     getOrdersForAdmin(accessToken, undefined, 0, 50, controller.signal)
-      .then((page) => setOrders(page.content))
+      .then(async (page) => {
+        setOrders(page.content);
+        const details = await Promise.all(
+          page.content.map((order) =>
+            getOrderForAdmin(order.id, accessToken, controller.signal),
+          ),
+        );
+        const map: Record<number, OrderItemData[]> = {};
+        details.forEach((detail) => {
+          map[detail.order.id] = detail.items;
+        });
+        setOrderItemsById(map);
+      })
       .catch((requestError) => {
         if (
           requestError instanceof DOMException &&
@@ -586,7 +603,7 @@ export default function Admin() {
                         )}
                     </div>
                   </div>
-                  <div className="px-[18px] pb-3.5 text-[12.5px] text-sub">
+                  <div className="px-[18px] pb-1.5 text-[12.5px] text-sub">
                     {formatPhone(o.receiverPhone)} ·{" "}
                     {o.zipCode && `[${o.zipCode}] `}
                     {o.address} {o.addressDetail}
@@ -595,6 +612,15 @@ export default function Admin() {
                         취소 사유: {o.cancelReason}
                       </span>
                     )}
+                  </div>
+                  <div className="px-[18px] pb-3.5 text-[12.5px] text-sub">
+                    {(orderItemsById[o.id] ?? []).length === 0
+                      ? "상품 정보를 불러오는 중…"
+                      : (orderItemsById[o.id] ?? [])
+                          .map(
+                            (item) => `${item.productName} × ${item.quantity}`,
+                          )
+                          .join(", ")}
                   </div>
                 </div>
               );
