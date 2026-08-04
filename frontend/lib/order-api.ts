@@ -153,3 +153,56 @@ export function confirmOrder(orderId: number, accessToken?: string | null): Prom
     accessToken,
   });
 }
+
+// ---- Admin ----
+
+export function getOrdersForAdmin(
+  accessToken: string,
+  filters?: {
+    status?: OrderStatus;
+    deliveryStatus?: DeliveryStatus;
+    userId?: number;
+    from?: string;
+    to?: string;
+  },
+  page = 0,
+  size = 20,
+  signal?: AbortSignal,
+): Promise<OrderPage> {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  if (filters?.status) query.set('status', filters.status);
+  if (filters?.deliveryStatus) query.set('deliveryStatus', filters.deliveryStatus);
+  if (filters?.userId) query.set('userId', String(filters.userId));
+  if (filters?.from) query.set('from', filters.from);
+  if (filters?.to) query.set('to', filters.to);
+  return request<OrderPage>(`/api/v1/admin/order?${query.toString()}`, { accessToken, signal });
+}
+
+export function getOrderForAdmin(
+  orderId: number,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<OrderDetailData> {
+  return request<OrderDetailData>(`/api/v1/admin/order/${orderId}`, { accessToken, signal });
+}
+
+export function shipOrderForAdmin(orderId: number, accessToken: string): Promise<OrderData> {
+  return request<OrderData>(`/api/v1/admin/order/${orderId}/ship`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
+export function deliverOrderForAdmin(orderId: number, accessToken: string): Promise<OrderData> {
+  return request<OrderData>(`/api/v1/admin/order/${orderId}/deliver`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
+export function cancelOrderForAdmin(orderId: number, accessToken: string): Promise<OrderData> {
+  return request<OrderData>(`/api/v1/admin/order/${orderId}/cancel`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
