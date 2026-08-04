@@ -76,6 +76,11 @@ public class Order extends BaseEntity {
 	@Column(name = "cancelled_at")
 	private LocalDateTime cancelledAt;
 
+	// 기존 취소 건에는 값이 없어 nullable로 둔다. 관리자 취소는 사유를 받고, 사용자 본인
+	// 취소는 사유 입력이 없어 null로 남는다.
+	@Column(name = "cancel_reason", length = 200)
+	private String cancelReason;
+
 	@Column(name = "confirmed_at")
 	private LocalDateTime confirmedAt;
 

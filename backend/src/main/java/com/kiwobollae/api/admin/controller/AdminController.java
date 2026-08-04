@@ -4,6 +4,7 @@ import com.kiwobollae.api.admin.service.ExchangeManagementService;
 import com.kiwobollae.api.admin.service.OrderManagementService;
 import com.kiwobollae.api.admin.service.PlantSpeciesManagementService;
 import com.kiwobollae.api.commerce.dto.request.ExchangeCancelRequest;
+import com.kiwobollae.api.commerce.dto.request.OrderCancelRequest;
 import com.kiwobollae.api.commerce.dto.response.ExchangeOrderResponse;
 import com.kiwobollae.api.commerce.dto.response.OrderDetailResponse;
 import com.kiwobollae.api.commerce.dto.response.OrderResponse;
@@ -102,10 +103,13 @@ public class AdminController {
 		return ResponseEntity.ok(ApiResponse.success(orderManagementService.deliverOrder(id)));
 	}
 
-	@Operation(summary = "주문 취소", description = "배송 준비 중인 주문을 관리자가 취소합니다. 재고·포인트가 환급됩니다.")
+	@Operation(summary = "주문 취소", description = "배송 준비 중인 주문을 관리자가 취소합니다. 재고·포인트가 환급되고, 취소 사유가 고객 알림에 표시됩니다.")
 	@PatchMapping("/order/{id}/cancel")
-	public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(@PathVariable Long id) {
-		return ResponseEntity.ok(ApiResponse.success(orderManagementService.adminCancelOrder(id)));
+	public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
+			@PathVariable Long id,
+			@Valid @RequestBody(required = false) OrderCancelRequest request) {
+		String reason = request != null ? request.reason() : null;
+		return ResponseEntity.ok(ApiResponse.success(orderManagementService.adminCancelOrder(id, reason)));
 	}
 
 	@Operation(summary = "교환 신청 전체 목록 조회", description = "상태(선택)로 필터링해 전체 교환 신청을 조회합니다.")

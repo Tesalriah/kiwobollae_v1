@@ -164,7 +164,8 @@ public class OrderService {
 				OrderStatus.CANCELLED,
 				OrderStatus.PAID,
 				DeliveryStatus.PREPARING,
-				LocalDateTime.now(KST)
+				LocalDateTime.now(KST),
+				null
 		);
 		if (updated == 0) {
 			throw new BusinessException(ErrorCode.ORDER_INVALID_STATE);

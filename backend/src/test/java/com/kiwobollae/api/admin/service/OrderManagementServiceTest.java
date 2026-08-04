@@ -24,6 +24,8 @@ import com.kiwobollae.api.commerce.repository.OrderRepository;
 import com.kiwobollae.api.commerce.repository.ProductRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.service.NotificationService;
 import com.kiwobollae.api.point.entity.enums.PointRefType;
 import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDateTime;
@@ -46,6 +48,7 @@ class OrderManagementServiceTest {
 	@Mock private OrderItemRepository orderItemRepository;
 	@Mock private ProductRepository productRepository;
 	@Mock private WalletService walletService;
+	@Mock private NotificationService notificationService;
 	@InjectMocks private OrderManagementService orderManagementService;
 
 	private Order mockOrder(Long id, OrderStatus status, DeliveryStatus deliveryStatus, Long userId) {
@@ -112,6 +115,9 @@ class OrderManagementServiceTest {
 		OrderResponse response = orderManagementService.shipOrder(50L);
 
 		assertThat(response.deliveryStatus()).isEqualTo(DeliveryStatus.SHIPPING);
+		verify(notificationService).notify(
+				eq(7L), eq(NotificationType.DELIVERY), any(), any(), any(), any(), eq(50L)
+		);
 	}
 
 	@Test
@@ -167,7 +173,8 @@ class OrderManagementServiceTest {
 	void adminCancelOrderRestocksAndRestoresPointsOnSuccess() {
 		Order order = mockOrder(50L, OrderStatus.PAID, DeliveryStatus.PREPARING, 7L);
 		given(orderRepository.cancelIfMatches(
-				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING), any(LocalDateTime.class)
+				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING),
+				any(LocalDateTime.class), eq("품절")
 		)).willReturn(1);
 		OrderItem item = mock(OrderItem.class);
 		Product product = mock(Product.class);
@@ -180,18 +187,21 @@ class OrderManagementServiceTest {
 				.willReturn(Optional.of(order))
 				.willReturn(Optional.of(cancelled));
 
-		OrderResponse response = orderManagementService.adminCancelOrder(50L);
+		OrderResponse response = orderManagementService.adminCancelOrder(50L, "품절");
 
 		assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
 		verify(productRepository).incrementStock(10L, 2);
 		verify(walletService).restorePurchasePoints(7L, 500L, 1500L, PointRefType.ORDER, 50L);
+		verify(notificationService).notify(
+				eq(7L), eq(NotificationType.DELIVERY), any(), eq("취소 사유: 품절"), any(), any(), eq(50L)
+		);
 	}
 
 	@Test
 	void adminCancelOrderFailsWhenOrderDoesNotExist() {
 		given(orderRepository.findById(50L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> orderManagementService.adminCancelOrder(50L))
+		assertThatThrownBy(() -> orderManagementService.adminCancelOrder(50L, "품절"))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND));
 		verify(walletService, never()).restorePurchasePoints(anyLong(), anyLong(), anyLong(), any(), anyLong());
@@ -202,11 +212,12 @@ class OrderManagementServiceTest {
 		Order order = mockOrder(50L, OrderStatus.PAID, DeliveryStatus.SHIPPING, 7L);
 		given(orderRepository.findById(50L)).willReturn(Optional.of(order));
 		given(orderRepository.cancelIfMatches(
-				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING), any(LocalDateTime.class)
+				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING),
+				any(LocalDateTime.class), eq("품절")
 		)).willReturn(0);
 		given(orderRepository.existsById(50L)).willReturn(true);
 
-		assertThatThrownBy(() -> orderManagementService.adminCancelOrder(50L))
+		assertThatThrownBy(() -> orderManagementService.adminCancelOrder(50L, "품절"))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_INVALID_STATE));
 		verify(walletService, never()).restorePurchasePoints(anyLong(), anyLong(), anyLong(), any(), anyLong());

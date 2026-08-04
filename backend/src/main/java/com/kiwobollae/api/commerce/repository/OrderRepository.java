@@ -65,15 +65,17 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 	);
 
 	// PAID∧PREPARING일 때만 취소 허용. 배송이 시작됐거나 이미 취소/확정된 주문은 0건 반환.
+	// cancelReason은 사용자 본인 취소 시 null로 넘어온다(입력 폼이 없음).
 	@Modifying
-	@Query("update Order o set o.status = :cancelled, o.cancelledAt = :cancelledAt "
+	@Query("update Order o set o.status = :cancelled, o.cancelledAt = :cancelledAt, o.cancelReason = :cancelReason "
 			+ "where o.id = :id and o.status = :paid and o.deliveryStatus = :preparing")
 	int cancelIfMatches(
 			@Param("id") Long id,
 			@Param("cancelled") OrderStatus cancelled,
 			@Param("paid") OrderStatus paid,
 			@Param("preparing") DeliveryStatus preparing,
-			@Param("cancelledAt") LocalDateTime cancelledAt
+			@Param("cancelledAt") LocalDateTime cancelledAt,
+			@Param("cancelReason") String cancelReason
 	);
 
 	// PAID∧DELIVERED일 때만 구매 확정 허용. 확정 후에는 취소 불가(상태가 더 이상 PAID가 아님).

@@ -12,6 +12,8 @@ import com.kiwobollae.api.commerce.repository.OrderRepository;
 import com.kiwobollae.api.commerce.repository.ProductRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.service.NotificationService;
 import com.kiwobollae.api.point.entity.enums.PointRefType;
 import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDateTime;
@@ -28,11 +30,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderManagementService {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final String REF_TYPE = "ORDER";
 
 	private final OrderRepository orderRepository;
 	private final OrderItemRepository orderItemRepository;
 	private final ProductRepository productRepository;
 	private final WalletService walletService;
+	private final NotificationService notificationService;
 
 	@Transactional(readOnly = true)
 	public Page<OrderResponse> getOrdersForAdmin(
@@ -63,7 +67,17 @@ public class OrderManagementService {
 		if (updated == 0) {
 			throwNotFoundOrInvalidState(id);
 		}
-		return OrderResponse.from(findOrderForAdmin(id));
+		Order order = findOrderForAdmin(id);
+		notificationService.notify(
+				order.getUser().getId(),
+				NotificationType.DELIVERY,
+				"주문하신 상품이 배송을 시작했어요 📦",
+				"주문 #" + id + " · " + order.getAddress(),
+				"/my/orders#order-" + id,
+				REF_TYPE,
+				id
+		);
+		return OrderResponse.from(order);
 	}
 
 	@Transactional
@@ -78,10 +92,10 @@ public class OrderManagementService {
 	}
 
 	@Transactional
-	public OrderResponse adminCancelOrder(Long id) {
+	public OrderResponse adminCancelOrder(Long id, String reason) {
 		Order order = findOrderForAdmin(id);
 		int updated = orderRepository.cancelIfMatches(
-				id, OrderStatus.CANCELLED, OrderStatus.PAID, DeliveryStatus.PREPARING, LocalDateTime.now(KST)
+				id, OrderStatus.CANCELLED, OrderStatus.PAID, DeliveryStatus.PREPARING, LocalDateTime.now(KST), reason
 		);
 		if (updated == 0) {
 			throwNotFoundOrInvalidState(id);
@@ -95,6 +109,15 @@ public class OrderManagementService {
 				order.getUsedFreePoint(),
 				order.getUsedPaidPoint(),
 				PointRefType.ORDER,
+				id
+		);
+		notificationService.notify(
+				order.getUser().getId(),
+				NotificationType.DELIVERY,
+				"주문이 취소됐어요",
+				reason != null && !reason.isBlank() ? "취소 사유: " + reason : "주문 #" + id + "가 취소됐어요.",
+				"/my/orders#order-" + id,
+				REF_TYPE,
 				id
 		);
 		return OrderResponse.from(findOrderForAdmin(id));
