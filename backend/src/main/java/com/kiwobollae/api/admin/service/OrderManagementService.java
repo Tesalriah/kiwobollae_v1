@@ -5,6 +5,7 @@ import com.kiwobollae.api.commerce.dto.response.OrderItemResponse;
 import com.kiwobollae.api.commerce.dto.response.OrderResponse;
 import com.kiwobollae.api.commerce.entity.Order;
 import com.kiwobollae.api.commerce.entity.OrderItem;
+import com.kiwobollae.api.commerce.entity.enums.CancelledBy;
 import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
 import com.kiwobollae.api.commerce.repository.OrderItemRepository;
@@ -105,7 +106,8 @@ public class OrderManagementService {
 	public OrderResponse adminCancelOrder(Long id, String reason) {
 		Order order = findOrderForAdmin(id);
 		int updated = orderRepository.cancelIfMatches(
-				id, OrderStatus.CANCELLED, OrderStatus.PAID, DeliveryStatus.PREPARING, LocalDateTime.now(KST), reason
+				id, OrderStatus.CANCELLED, OrderStatus.PAID, DeliveryStatus.PREPARING,
+				LocalDateTime.now(KST), reason, CancelledBy.ADMIN
 		);
 		if (updated == 0) {
 			throwNotFoundOrInvalidState(id);

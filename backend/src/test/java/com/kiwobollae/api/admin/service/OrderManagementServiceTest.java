@@ -17,6 +17,7 @@ import com.kiwobollae.api.commerce.dto.response.OrderResponse;
 import com.kiwobollae.api.commerce.entity.Order;
 import com.kiwobollae.api.commerce.entity.OrderItem;
 import com.kiwobollae.api.commerce.entity.Product;
+import com.kiwobollae.api.commerce.entity.enums.CancelledBy;
 import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
 import com.kiwobollae.api.commerce.repository.OrderItemRepository;
@@ -180,7 +181,7 @@ class OrderManagementServiceTest {
 		Order order = mockOrder(50L, OrderStatus.PAID, DeliveryStatus.PREPARING, 7L);
 		given(orderRepository.cancelIfMatches(
 				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING),
-				any(LocalDateTime.class), eq("품절")
+				any(LocalDateTime.class), eq("품절"), eq(CancelledBy.ADMIN)
 		)).willReturn(1);
 		OrderItem item = mock(OrderItem.class);
 		Product product = mock(Product.class);
@@ -220,7 +221,7 @@ class OrderManagementServiceTest {
 		given(orderRepository.findById(50L)).willReturn(Optional.of(order));
 		given(orderRepository.cancelIfMatches(
 				eq(50L), eq(OrderStatus.CANCELLED), eq(OrderStatus.PAID), eq(DeliveryStatus.PREPARING),
-				any(LocalDateTime.class), eq("품절")
+				any(LocalDateTime.class), eq("품절"), eq(CancelledBy.ADMIN)
 		)).willReturn(0);
 		given(orderRepository.existsById(50L)).willReturn(true);
 

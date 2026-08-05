@@ -1,6 +1,7 @@
 package com.kiwobollae.api.commerce.dto.response;
 
 import com.kiwobollae.api.commerce.entity.Order;
+import com.kiwobollae.api.commerce.entity.enums.CancelledBy;
 import com.kiwobollae.api.commerce.entity.enums.ConfirmedBy;
 import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
@@ -23,6 +24,7 @@ public record OrderResponse(
 		LocalDateTime deliveredAt,
 		LocalDateTime cancelledAt,
 		String cancelReason,
+		CancelledBy cancelledBy,
 		LocalDateTime confirmedAt,
 		ConfirmedBy confirmedBy,
 		boolean cancellable,
@@ -50,6 +52,7 @@ public record OrderResponse(
 				order.getDeliveredAt(),
 				order.getCancelledAt(),
 				order.getCancelReason(),
+				order.getCancelledBy(),
 				order.getConfirmedAt(),
 				order.getConfirmedBy(),
 				cancellable,

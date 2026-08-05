@@ -1,6 +1,7 @@
 package com.kiwobollae.api.commerce.entity;
 
 import com.kiwobollae.api.auth.entity.User;
+import com.kiwobollae.api.commerce.entity.enums.CancelledBy;
 import com.kiwobollae.api.commerce.entity.enums.ConfirmedBy;
 import com.kiwobollae.api.commerce.entity.enums.DeliveryStatus;
 import com.kiwobollae.api.commerce.entity.enums.OrderStatus;
@@ -85,6 +86,12 @@ public class Order extends BaseEntity {
 	// 취소는 사유 입력이 없어 null로 남는다.
 	@Column(name = "cancel_reason", length = 200)
 	private String cancelReason;
+
+	// ExchangeOrder.cancelledBy와 동일한 컨벤션 — 고객센터 대응·통계에서 "누가 취소했는지"를
+	// 구분해야 해서 추가. 기존 취소 건에는 값이 없어 nullable로 둔다.
+	@Enumerated(EnumType.STRING)
+	@Column(name = "cancelled_by", length = 10)
+	private CancelledBy cancelledBy;
 
 	@Column(name = "confirmed_at")
 	private LocalDateTime confirmedAt;
