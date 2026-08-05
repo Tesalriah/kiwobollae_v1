@@ -130,6 +130,7 @@ class OrderManagementServiceTest {
 		assertThatThrownBy(() -> orderManagementService.shipOrder(50L))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND));
+		verify(notificationService, never()).notify(anyLong(), any(), any(), any(), any(), any(), anyLong());
 	}
 
 	@Test
@@ -142,6 +143,7 @@ class OrderManagementServiceTest {
 		assertThatThrownBy(() -> orderManagementService.shipOrder(50L))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_INVALID_STATE));
+		verify(notificationService, never()).notify(anyLong(), any(), any(), any(), any(), any(), anyLong());
 	}
 
 	@Test
@@ -170,6 +172,7 @@ class OrderManagementServiceTest {
 		assertThatThrownBy(() -> orderManagementService.deliverOrder(50L))
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_INVALID_STATE));
+		verify(notificationService, never()).notify(anyLong(), any(), any(), any(), any(), any(), anyLong());
 	}
 
 	@Test
@@ -208,6 +211,7 @@ class OrderManagementServiceTest {
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND));
 		verify(walletService, never()).restorePurchasePoints(anyLong(), anyLong(), anyLong(), any(), anyLong());
+		verify(notificationService, never()).notify(anyLong(), any(), any(), any(), any(), any(), anyLong());
 	}
 
 	@Test
@@ -224,5 +228,6 @@ class OrderManagementServiceTest {
 				.isInstanceOfSatisfying(BusinessException.class, exception ->
 						assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_INVALID_STATE));
 		verify(walletService, never()).restorePurchasePoints(anyLong(), anyLong(), anyLong(), any(), anyLong());
+		verify(notificationService, never()).notify(anyLong(), any(), any(), any(), any(), any(), anyLong());
 	}
 }
