@@ -607,9 +607,10 @@ export default function Admin() {
                     {formatPhone(o.receiverPhone)} ·{" "}
                     {o.zipCode && `[${o.zipCode}] `}
                     {o.address} {o.addressDetail}
-                    {cancelled && o.cancelReason && (
+                    {cancelled && (o.cancelReason || o.cancelledBy) && (
                       <span className="ml-2 font-semibold text-[#b5502f]">
-                        취소 사유: {o.cancelReason}
+                        {o.cancelledBy === "ADMIN" ? "관리자 취소" : "본인 취소"}
+                        {o.cancelReason && ` · 사유: ${o.cancelReason}`}
                       </span>
                     )}
                   </div>

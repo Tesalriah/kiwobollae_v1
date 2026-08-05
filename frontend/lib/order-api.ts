@@ -65,6 +65,7 @@ export function deleteCartItems(cartItemIds: number[], accessToken?: string | nu
 export type OrderStatus = 'PAID' | 'CANCELLED' | 'PURCHASE_CONFIRMED';
 export type DeliveryStatus = 'PREPARING' | 'SHIPPING' | 'DELIVERED';
 export type ConfirmedBy = 'USER' | 'SYSTEM';
+export type CancelledBy = 'USER' | 'ADMIN';
 
 export interface OrderData {
   id: number;
@@ -83,6 +84,7 @@ export interface OrderData {
   deliveredAt: string | null;
   cancelledAt: string | null;
   cancelReason: string | null;
+  cancelledBy: CancelledBy | null;
   confirmedAt: string | null;
   confirmedBy: ConfirmedBy | null;
   cancellable: boolean;
