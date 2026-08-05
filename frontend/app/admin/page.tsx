@@ -614,13 +614,15 @@ export default function Admin() {
                     )}
                   </div>
                   <div className="px-[18px] pb-3.5 text-[12.5px] text-sub">
-                    {(orderItemsById[o.id] ?? []).length === 0
+                    {!(o.id in orderItemsById)
                       ? "상품 정보를 불러오는 중…"
-                      : (orderItemsById[o.id] ?? [])
-                          .map(
-                            (item) => `${item.productName} × ${item.quantity}`,
-                          )
-                          .join(", ")}
+                      : orderItemsById[o.id].length === 0
+                        ? "표시할 상품 정보가 없어요."
+                        : orderItemsById[o.id]
+                            .map(
+                              (item) => `${item.productName} × ${item.quantity}`,
+                            )
+                            .join(", ")}
                   </div>
                 </div>
               );
