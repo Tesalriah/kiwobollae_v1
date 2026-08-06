@@ -77,12 +77,22 @@ class OrderManagementServiceTest {
 		Order order = mockOrder(1L, OrderStatus.PAID, DeliveryStatus.PREPARING, 7L);
 		given(orderRepository.search(OrderStatus.PAID, null, null, null, null, pageable))
 				.willReturn(new PageImpl<>(List.of(order)));
+		OrderItem item = mock(OrderItem.class);
+		Product product = mock(Product.class);
+		lenient().when(item.getId()).thenReturn(100L);
+		lenient().when(item.getOrder()).thenReturn(order);
+		lenient().when(item.getProduct()).thenReturn(product);
+		lenient().when(item.getProductName()).thenReturn("새싹 재배 키트");
+		lenient().when(item.getQuantity()).thenReturn(1);
+		lenient().when(item.getUnitPoint()).thenReturn(800L);
+		given(orderItemRepository.findAllByOrderIdIn(List.of(1L))).willReturn(List.of(item));
 
-		Page<OrderResponse> result =
+		Page<OrderDetailResponse> result =
 				orderManagementService.getOrdersForAdmin(OrderStatus.PAID, null, null, null, null, pageable);
 
 		assertThat(result.getContent()).hasSize(1);
-		assertThat(result.getContent().get(0).id()).isEqualTo(1L);
+		assertThat(result.getContent().get(0).order().id()).isEqualTo(1L);
+		assertThat(result.getContent().get(0).items()).hasSize(1);
 	}
 
 	@Test

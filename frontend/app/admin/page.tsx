@@ -26,7 +26,6 @@ import {
 import {
   cancelOrderForAdmin,
   deliverOrderForAdmin,
-  getOrderForAdmin,
   getOrdersForAdmin,
   OrderData,
   OrderItemData,
@@ -121,15 +120,10 @@ export default function Admin() {
     setOrdersError("");
 
     getOrdersForAdmin(accessToken, undefined, 0, 50, controller.signal)
-      .then(async (page) => {
-        setOrders(page.content);
-        const details = await Promise.all(
-          page.content.map((order) =>
-            getOrderForAdmin(order.id, accessToken, controller.signal),
-          ),
-        );
+      .then((page) => {
+        setOrders(page.content.map((detail) => detail.order));
         const map: Record<number, OrderItemData[]> = {};
-        details.forEach((detail) => {
+        page.content.forEach((detail) => {
           map[detail.order.id] = detail.items;
         });
         setOrderItemsById(map);

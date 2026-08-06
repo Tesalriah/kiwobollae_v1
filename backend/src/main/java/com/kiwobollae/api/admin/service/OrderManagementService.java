@@ -20,6 +20,8 @@ import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,7 +42,7 @@ public class OrderManagementService {
 	private final NotificationService notificationService;
 
 	@Transactional(readOnly = true)
-	public Page<OrderResponse> getOrdersForAdmin(
+	public Page<OrderDetailResponse> getOrdersForAdmin(
 			OrderStatus status,
 			DeliveryStatus deliveryStatus,
 			Long userId,
@@ -48,7 +50,17 @@ public class OrderManagementService {
 			LocalDateTime to,
 			Pageable pageable
 	) {
-		return orderRepository.search(status, deliveryStatus, userId, from, to, pageable).map(OrderResponse::from);
+		Page<Order> orders = orderRepository.search(status, deliveryStatus, userId, from, to, pageable);
+		List<Long> orderIds = orders.getContent().stream().map(Order::getId).toList();
+		Map<Long, List<OrderItemResponse>> itemsByOrderId = orderItemRepository.findAllByOrderIdIn(orderIds).stream()
+				.collect(Collectors.groupingBy(
+						item -> item.getOrder().getId(),
+						Collectors.mapping(OrderItemResponse::from, Collectors.toList())
+				));
+		return orders.map(order -> new OrderDetailResponse(
+				OrderResponse.from(order),
+				itemsByOrderId.getOrDefault(order.getId(), List.of())
+		));
 	}
 
 	@Transactional(readOnly = true)

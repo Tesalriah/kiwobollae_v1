@@ -70,9 +70,9 @@ public class AdminController {
 		return ResponseEntity.ok(ApiResponse.success(plantSpeciesManagementService.updateSpecies(id, request)));
 	}
 
-	@Operation(summary = "주문 전체 목록 조회", description = "주문 상태·배송 상태·유저·기간(선택)으로 필터링해 전체 주문을 조회합니다.")
+	@Operation(summary = "주문 전체 목록 조회", description = "주문 상태·배송 상태·유저·기간(선택)으로 필터링해 전체 주문을 조회합니다. 각 주문의 구매 상품 목록을 함께 반환합니다.")
 	@GetMapping("/order")
-	public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrders(
+	public ResponseEntity<ApiResponse<Page<OrderDetailResponse>>> getOrders(
 			@RequestParam(required = false) OrderStatus status,
 			@RequestParam(required = false) DeliveryStatus deliveryStatus,
 			@RequestParam(required = false) Long userId,

@@ -113,6 +113,14 @@ export interface OrderPage {
   last: boolean;
 }
 
+export interface OrderDetailPage {
+  content: OrderDetailData[];
+  totalPages: number;
+  totalElements: number;
+  first: boolean;
+  last: boolean;
+}
+
 export interface OrderCreatePayload {
   cartItemIds: number[];
   requestedFreePoint: number;
@@ -173,14 +181,14 @@ export function getOrdersForAdmin(
   page = 0,
   size = 20,
   signal?: AbortSignal,
-): Promise<OrderPage> {
+): Promise<OrderDetailPage> {
   const query = new URLSearchParams({ page: String(page), size: String(size) });
   if (filters?.status) query.set('status', filters.status);
   if (filters?.deliveryStatus) query.set('deliveryStatus', filters.deliveryStatus);
   if (filters?.userId) query.set('userId', String(filters.userId));
   if (filters?.from) query.set('from', filters.from);
   if (filters?.to) query.set('to', filters.to);
-  return request<OrderPage>(`/api/v1/admin/order?${query.toString()}`, { accessToken, signal });
+  return request<OrderDetailPage>(`/api/v1/admin/order?${query.toString()}`, { accessToken, signal });
 }
 
 export function getOrderForAdmin(
