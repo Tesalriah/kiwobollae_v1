@@ -9,6 +9,7 @@ public record BoardCommentResponse(
 		Long userId,
 		String nickname,
 		String content,
+		Integer likeCount,
 		LocalDateTime createdAt,
 		LocalDateTime updatedAt
 ) {
@@ -19,6 +20,7 @@ public record BoardCommentResponse(
 				comment.getUser().getId(),
 				comment.getUser().getNickname(),
 				comment.getContent(),
+				comment.getLikeCount(),
 				comment.getCreatedAt(),
 				comment.getUpdatedAt()
 		);

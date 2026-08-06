@@ -5,9 +5,11 @@ import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.board.dto.request.BoardCommentCreateRequest;
 import com.kiwobollae.api.board.dto.response.BoardCommentResponse;
 import com.kiwobollae.api.board.entity.BoardComment;
+import com.kiwobollae.api.board.entity.BoardCommentLike;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.board.repository.BoardCommentLikeRepository;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
@@ -27,6 +29,7 @@ public class BoardCommentService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final BoardCommentRepository boardCommentRepository;
+	private final BoardCommentLikeRepository boardCommentLikeRepository;
 	private final BoardPostRepository boardPostRepository;
 	private final UserRepository userRepository;
 
@@ -48,16 +51,40 @@ public class BoardCommentService {
 
 	@Transactional
 	public void deleteComment(Long userId, Long commentId) {
-		BoardComment comment = boardCommentRepository.findByIdWithUser(commentId)
-				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND));
-		if (comment.getStatus() != BoardStatus.ACTIVE) {
-			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND);
-		}
+		BoardComment comment = findActiveComment(commentId);
 		if (!comment.getUser().getId().equals(userId)) {
 			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_OWNED);
 		}
 		comment.hide(BoardHiddenBy.AUTHOR, LocalDateTime.now(KST));
 		comment.getPost().decrementCommentCount();
+	}
+
+	@Transactional
+	public void likeComment(Long userId, Long commentId) {
+		BoardComment comment = findActiveComment(commentId);
+		if (boardCommentLikeRepository.existsByCommentIdAndUserId(commentId, userId)) {
+			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
+		}
+		User user = userRepository.getReferenceById(userId);
+		boardCommentLikeRepository.save(BoardCommentLike.create(comment, user, LocalDateTime.now(KST)));
+		comment.incrementLikeCount();
+	}
+
+	@Transactional
+	public void unlikeComment(Long userId, Long commentId) {
+		BoardCommentLike like = boardCommentLikeRepository.findByCommentIdAndUserId(commentId, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_LIKE_NOT_FOUND));
+		boardCommentLikeRepository.delete(like);
+		boardCommentRepository.getReferenceById(commentId).decrementLikeCount();
+	}
+
+	private BoardComment findActiveComment(Long commentId) {
+		BoardComment comment = boardCommentRepository.findByIdWithUser(commentId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND));
+		if (comment.getStatus() != BoardStatus.ACTIVE) {
+			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+		}
+		return comment;
 	}
 
 	private BoardPost findActivePost(Long postId) {

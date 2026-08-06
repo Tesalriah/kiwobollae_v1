@@ -42,6 +42,9 @@ public class BoardComment extends BaseTimeEntity {
 	@Column(nullable = false, length = 500)
 	private String content;
 
+	@Column(name = "like_count", nullable = false)
+	private Integer likeCount;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private BoardStatus status;
@@ -58,6 +61,7 @@ public class BoardComment extends BaseTimeEntity {
 				.post(post)
 				.user(user)
 				.content(content)
+				.likeCount(0)
 				.status(BoardStatus.ACTIVE)
 				.build();
 	}
@@ -66,5 +70,13 @@ public class BoardComment extends BaseTimeEntity {
 		this.status = BoardStatus.HIDDEN;
 		this.hiddenBy = hiddenBy;
 		this.hiddenAt = hiddenAt;
+	}
+
+	public void incrementLikeCount() {
+		this.likeCount++;
+	}
+
+	public void decrementLikeCount() {
+		this.likeCount--;
 	}
 }

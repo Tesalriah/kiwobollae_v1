@@ -14,9 +14,11 @@ import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.board.dto.request.BoardCommentCreateRequest;
 import com.kiwobollae.api.board.dto.response.BoardCommentResponse;
 import com.kiwobollae.api.board.entity.BoardComment;
+import com.kiwobollae.api.board.entity.BoardCommentLike;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.board.repository.BoardCommentLikeRepository;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
@@ -33,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BoardCommentServiceTest {
 
 	@Mock private BoardCommentRepository boardCommentRepository;
+	@Mock private BoardCommentLikeRepository boardCommentLikeRepository;
 	@Mock private BoardPostRepository boardPostRepository;
 	@Mock private UserRepository userRepository;
 	@InjectMocks private BoardCommentService boardCommentService;
@@ -149,5 +152,56 @@ class BoardCommentServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+	}
+
+	@Test
+	void likeCommentSucceedsWhenNotAlreadyLiked() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+		given(boardCommentLikeRepository.existsByCommentIdAndUserId(100L, 1L)).willReturn(false);
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+
+		boardCommentService.likeComment(1L, 100L);
+
+		verify(comment).incrementLikeCount();
+	}
+
+	@Test
+	void likeCommentFailsWhenAlreadyLiked() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+		given(boardCommentLikeRepository.existsByCommentIdAndUserId(100L, 1L)).willReturn(true);
+
+		assertThatThrownBy(() -> boardCommentService.likeComment(1L, 100L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_ALREADY_LIKED);
+	}
+
+	@Test
+	void unlikeCommentSucceedsWhenLiked() {
+		BoardComment comment = mockComment(100L, mockPost(10L, BoardStatus.ACTIVE), mockUser(1L), "댓글 내용", BoardStatus.ACTIVE);
+		BoardCommentLike like = mock(BoardCommentLike.class);
+		given(boardCommentLikeRepository.findByCommentIdAndUserId(100L, 1L)).willReturn(Optional.of(like));
+		given(boardCommentRepository.getReferenceById(100L)).willReturn(comment);
+
+		boardCommentService.unlikeComment(1L, 100L);
+
+		verify(boardCommentLikeRepository).delete(like);
+		verify(comment).decrementLikeCount();
+	}
+
+	@Test
+	void unlikeCommentFailsWhenNotLiked() {
+		given(boardCommentLikeRepository.findByCommentIdAndUserId(100L, 1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardCommentService.unlikeComment(1L, 100L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_LIKE_NOT_FOUND);
 	}
 }

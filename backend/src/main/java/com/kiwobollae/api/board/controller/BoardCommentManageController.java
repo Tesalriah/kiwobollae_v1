@@ -5,10 +5,12 @@ import com.kiwobollae.api.global.common.ApiVersion;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,6 +27,20 @@ public class BoardCommentManageController {
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteComment(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
 		boardCommentService.deleteComment(userId, id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@Operation(summary = "댓글 좋아요", description = "사용자당 댓글 1회 좋아요만 허용합니다.")
+	@PostMapping("/{id}/likes")
+	public ResponseEntity<Void> likeComment(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+		boardCommentService.likeComment(userId, id);
+		return ResponseEntity.status(HttpStatus.CREATED).build();
+	}
+
+	@Operation(summary = "댓글 좋아요 취소", description = "이미 누른 좋아요를 취소합니다.")
+	@DeleteMapping("/{id}/likes")
+	public ResponseEntity<Void> unlikeComment(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+		boardCommentService.unlikeComment(userId, id);
 		return ResponseEntity.noContent().build();
 	}
 }
