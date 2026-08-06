@@ -15,6 +15,7 @@ import com.kiwobollae.api.content.repository.JournalImageRepository;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
 import com.kiwobollae.api.content.repository.PlantProfileRepository;
 import com.kiwobollae.api.content.repository.PlantSpeciesRepository;
+import com.kiwobollae.api.content.repository.PlantTimelapseRepository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -32,8 +33,10 @@ class PlantProfileServiceTest {
 	@Mock private PlantSpeciesRepository plantSpeciesRepository;
 	@Mock private PlantJournalRepository plantJournalRepository;
 	@Mock private JournalImageRepository journalImageRepository;
+	@Mock private PlantTimelapseRepository plantTimelapseRepository;
 	@Mock private PlantImageUploadService plantImageUploadService;
 	@Mock private JournalImageUploadService journalImageUploadService;
+	@Mock private PlantTimelapseVideoStorageService plantTimelapseVideoStorageService;
 	@Mock private com.kiwobollae.api.auth.repository.UserRepository userRepository;
 
 	@InjectMocks
@@ -71,6 +74,33 @@ class PlantProfileServiceTest {
 
 		verifyNoInteractions(plantImageUploadService);
 		verifyNoInteractions(journalImageUploadService);
+	}
+
+	@Test
+	void deleteProfileCleansUpCompletedTimelapseVideo() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "emoji:🌱");
+		given(plantProfileRepository.findByIdAndUserId(21L, 7L)).willReturn(Optional.of(profile));
+		given(journalImageRepository.findByProfileId(21L)).willReturn(List.of());
+		given(plantTimelapseRepository.findVideoUrlByPlantProfileId(21L))
+				.willReturn(Optional.of("/api/v1/plants/timelapse-videos/7/abc.mp4"));
+
+		plantProfileService.deleteProfile(7L, 21L);
+
+		verify(plantTimelapseVideoStorageService).deleteVideo("/api/v1/plants/timelapse-videos/7/abc.mp4");
+	}
+
+	@Test
+	void deleteProfileSkipsVideoCleanupWhenNoCompletedTimelapseExists() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "emoji:🌱");
+		given(plantProfileRepository.findByIdAndUserId(21L, 7L)).willReturn(Optional.of(profile));
+		given(journalImageRepository.findByProfileId(21L)).willReturn(List.of());
+		given(plantTimelapseRepository.findVideoUrlByPlantProfileId(21L)).willReturn(Optional.empty());
+
+		plantProfileService.deleteProfile(7L, 21L);
+
+		verifyNoInteractions(plantTimelapseVideoStorageService);
 	}
 
 	@Test
