@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api';
 import { useStore, fmt } from '@/lib/store';
 import { useUI } from '@/lib/ui';
 import PointPrice from '@/components/PointPrice';
+import { formatPhone } from '@/components/AddressForm';
 import {
   cancelOrder,
   confirmOrder,
@@ -65,6 +66,15 @@ export default function Orders() {
     if (!hydrated) return;
     void load();
   }, [hydrated, load]);
+
+  useEffect(() => {
+    if (loading || orders.length === 0 || !window.location.hash) return;
+    const targetId = decodeURIComponent(window.location.hash.slice(1));
+    if (!targetId.startsWith('order-')) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [loading, orders]);
 
   const setBusy = (id: number, value: boolean) => setBusyIds((prev) => ({ ...prev, [id]: value }));
 
@@ -144,7 +154,11 @@ export default function Orders() {
             const items = itemsByOrderId[order.id] || [];
             const busy = busyIds[order.id];
             return (
-              <div key={order.id} className="rounded-[18px] bg-white p-5 shadow-card">
+              <div
+                id={`order-${order.id}`}
+                key={order.id}
+                className="scroll-mt-24 rounded-[18px] bg-white p-5 shadow-card target:ring-2 target:ring-brand"
+              >
                 <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="font-extrabold">주문 #{order.id}</span>
@@ -164,6 +178,29 @@ export default function Orders() {
                     </div>
                   ))}
                 </div>
+
+                <div className="mb-3.5 rounded-xl bg-[#F8FAF3] px-3.5 py-3 text-[13px]">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold text-ink">
+                    <span className="material-symbols-outlined text-[16px] text-sub">local_shipping</span>
+                    배송지
+                  </div>
+                  <div className="text-sub">
+                    {order.receiverName} · {formatPhone(order.receiverPhone)}
+                  </div>
+                  <div className="text-sub">
+                    {order.zipCode && `[${order.zipCode}] `}{order.address} {order.addressDetail}
+                  </div>
+                </div>
+
+                {order.status === 'CANCELLED' && (order.cancelReason || order.cancelledBy) && (
+                  <div className="mb-3.5 rounded-xl bg-[#FBF3EF] px-3.5 py-3 text-[13px]">
+                    <div className="mb-1 flex items-center gap-1.5 font-bold text-[#b5502f]">
+                      <span className="material-symbols-outlined text-[16px]">info</span>
+                      {order.cancelledBy === 'ADMIN' ? '관리자에 의해 취소되었어요' : '주문을 취소했어요'}
+                    </div>
+                    {order.cancelReason && <div className="text-[#b5502f]">사유: {order.cancelReason}</div>}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-[#f2f3ec] pt-3.5">
                   <div className="flex items-center gap-1.5 font-extrabold text-gold-text">

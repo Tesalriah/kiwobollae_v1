@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.kiwobollae.api.admin.service.ExchangeManagementService;
+import com.kiwobollae.api.admin.service.OrderManagementService;
 import com.kiwobollae.api.admin.service.PlantSpeciesManagementService;
 import com.kiwobollae.api.commerce.dto.request.ExchangeCancelRequest;
 import com.kiwobollae.api.commerce.dto.response.ExchangeOrderResponse;
@@ -38,6 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 class AdminControllerTest {
 
 	@Mock private ExchangeManagementService exchangeManagementService;
+	@Mock private OrderManagementService orderManagementService;
 	@Mock private PlantSpeciesManagementService plantSpeciesManagementService;
 
 	private MockMvc mockMvc;
@@ -45,7 +47,8 @@ class AdminControllerTest {
 
 	@BeforeEach
 	void setUp() {
-		AdminController adminController = new AdminController(exchangeManagementService, plantSpeciesManagementService);
+		AdminController adminController = new AdminController(
+				exchangeManagementService, orderManagementService, plantSpeciesManagementService);
 		mockMvc = MockMvcBuilders.standaloneSetup(adminController)
 				.setControllerAdvice(new GlobalExceptionHandler())
 				.setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
@@ -103,7 +106,7 @@ class AdminControllerTest {
 	private ExchangeOrderResponse sampleResponse(Long id, ExchangeStatus status) {
 		return new ExchangeOrderResponse(
 				id, 7L, 1L, "수박 카드", 10L, "텀블러", 3, status, null, null, null, null,
-				"홍길동", "010-1234-5678", "서울시 강남구", "101동", LocalDateTime.of(2026, 7, 28, 10, 0)
+				"홍길동", "010-1234-5678", "06236", "서울시 강남구", "101동", LocalDateTime.of(2026, 7, 28, 10, 0)
 		);
 	}
 

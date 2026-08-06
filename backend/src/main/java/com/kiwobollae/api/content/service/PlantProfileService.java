@@ -12,6 +12,7 @@ import com.kiwobollae.api.content.repository.JournalImageRepository;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
 import com.kiwobollae.api.content.repository.PlantProfileRepository;
 import com.kiwobollae.api.content.repository.PlantSpeciesRepository;
+import com.kiwobollae.api.content.repository.PlantTimelapseRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.util.List;
@@ -32,8 +33,10 @@ public class PlantProfileService {
 	private final PlantSpeciesRepository plantSpeciesRepository;
 	private final PlantJournalRepository plantJournalRepository;
 	private final JournalImageRepository journalImageRepository;
+	private final PlantTimelapseRepository plantTimelapseRepository;
 	private final PlantImageUploadService plantImageUploadService;
 	private final JournalImageUploadService journalImageUploadService;
+	private final PlantTimelapseVideoStorageService plantTimelapseVideoStorageService;
 	private final UserRepository userRepository;
 
 	@Transactional
@@ -75,9 +78,11 @@ public class PlantProfileService {
 		List<JournalImage> journalImages = journalImageRepository.findByProfileId(profileId);
 		// 삭제 순서와 무관하게 안전하도록, DB 삭제 전에 정리에 필요한 값을 미리 뽑아둔다.
 		String thumbnailUrl = profile.getPlantImage();
+		String timelapseVideoUrl = plantTimelapseRepository.findVideoUrlByPlantProfileId(profileId).orElse(null);
 
 		journalImageRepository.deleteAllByProfileId(profileId);
 		plantJournalRepository.deleteAllByProfileId(profileId);
+		plantTimelapseRepository.deleteByPlantProfileId(profileId);
 		plantProfileRepository.delete(profile);
 
 		// DB 삭제가 끝난 뒤 S3 정리 — 정리 실패가 프로필 삭제 자체를 막지 않도록 delete()는 항상 예외 없이 반환한다.
@@ -85,6 +90,9 @@ public class PlantProfileService {
 		// (plants/ 경로만 인식하는 PlantImageUploadService로는 조용히 무시된다).
 		journalImages.forEach(image -> journalImageUploadService.delete(image.getImageUrl(), userId));
 		deleteThumbnailIfUploaded(thumbnailUrl, userId);
+		if (timelapseVideoUrl != null) {
+			plantTimelapseVideoStorageService.deleteVideo(timelapseVideoUrl);
+		}
 	}
 
 	private void deleteThumbnailIfUploaded(String thumbnailUrl, Long userId) {
