@@ -155,6 +155,19 @@ class BoardCommentServiceTest {
 	}
 
 	@Test
+	void adminHideCommentHidesActiveCommentAndDecrementsPostCount() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+
+		boardCommentService.adminHideComment(100L);
+
+		verify(comment).hide(eq(BoardHiddenBy.ADMIN), any());
+		verify(post).decrementCommentCount();
+	}
+
+	@Test
 	void likeCommentSucceedsWhenNotAlreadyLiked() {
 		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
 		User user = mockUser(1L);

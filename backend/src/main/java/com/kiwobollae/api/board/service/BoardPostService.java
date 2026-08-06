@@ -90,6 +90,12 @@ public class BoardPostService {
 	}
 
 	@Transactional
+	public void adminHidePost(Long id) {
+		BoardPost post = findActivePost(id);
+		post.hide(BoardHiddenBy.ADMIN, LocalDateTime.now(KST));
+	}
+
+	@Transactional
 	public void likePost(Long userId, Long id) {
 		BoardPost post = findActivePost(id);
 		if (boardPostLikeRepository.existsByPostIdAndUserId(id, userId)) {

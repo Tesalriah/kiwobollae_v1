@@ -247,6 +247,17 @@ class BoardPostServiceTest {
 	}
 
 	@Test
+	void adminHidePostHidesActivePost() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		boardPostService.adminHidePost(10L);
+
+		verify(post).hide(eq(BoardHiddenBy.ADMIN), any());
+	}
+
+	@Test
 	void likePostSucceedsWhenNotAlreadyLiked() {
 		User user = mockUser(1L, UserRole.USER);
 		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);

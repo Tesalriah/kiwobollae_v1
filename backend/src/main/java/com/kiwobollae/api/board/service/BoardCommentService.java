@@ -67,6 +67,13 @@ public class BoardCommentService {
 	}
 
 	@Transactional
+	public void adminHideComment(Long commentId) {
+		BoardComment comment = findActiveComment(commentId);
+		comment.hide(BoardHiddenBy.ADMIN, LocalDateTime.now(KST));
+		comment.getPost().decrementCommentCount();
+	}
+
+	@Transactional
 	public void likeComment(Long userId, Long commentId) {
 		BoardComment comment = findActiveComment(commentId);
 		if (boardCommentLikeRepository.existsByCommentIdAndUserId(commentId, userId)) {
