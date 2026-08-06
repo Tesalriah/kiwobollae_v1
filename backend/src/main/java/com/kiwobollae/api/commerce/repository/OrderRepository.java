@@ -24,7 +24,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 	Optional<Order> findByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
 	// 관리자용 전체 목록 조회. 각 필터는 null이면 조건에서 제외된다.
-	@Query(value = "select o from Order o where (:status is null or o.status = :status) "
+	// join fetch로 User를 함께 가져오지 않으면 OrderResponse.from(order)가 각 건마다
+	// order.getUser()를 lazy-load해 페이지 크기만큼 N+1 쿼리가 나간다.
+	@Query(value = "select o from Order o join fetch o.user where (:status is null or o.status = :status) "
 			+ "and (:deliveryStatus is null or o.deliveryStatus = :deliveryStatus) "
 			+ "and (:userId is null or o.user.id = :userId) "
 			+ "and (:from is null or o.orderedAt >= :from) "
