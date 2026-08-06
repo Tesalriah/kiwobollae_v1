@@ -9,12 +9,14 @@ import com.kiwobollae.api.notification.service.NotificationService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class PlantTimelapseTransactionService {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -25,6 +27,28 @@ public class PlantTimelapseTransactionService {
 	private final PlantTimelapseVideoStorageService videoStorageService;
 	private final FfmpegTimelapseEncoder encoder;
 	private final NotificationService notificationService;
+	private final Executor downloadExecutor;
+
+	// Lombok의 @RequiredArgsConstructor가 필드의 @Qualifier를 생성자 파라미터로 복사해주지
+	// 않아(실제로 확인됨 — 애플리케이션 전체에 Executor 빈이 여러 개라 모호해짐), 여기만
+	// 명시적으로 생성자를 쓴다. downloadExecutor는 반드시 timelapseDownloadExecutor여야
+	// 한다 — 다른 Executor 빈(gachaTaskExecutor, timelapseTaskExecutor 등)과 섞이면 안 된다.
+	public PlantTimelapseTransactionService(
+			PlantTimelapseRepository plantTimelapseRepository,
+			JournalImageRepository journalImageRepository,
+			JournalImageUploadService journalImageUploadService,
+			PlantTimelapseVideoStorageService videoStorageService,
+			FfmpegTimelapseEncoder encoder,
+			NotificationService notificationService,
+			@Qualifier("timelapseDownloadExecutor") Executor downloadExecutor) {
+		this.plantTimelapseRepository = plantTimelapseRepository;
+		this.journalImageRepository = journalImageRepository;
+		this.journalImageUploadService = journalImageUploadService;
+		this.videoStorageService = videoStorageService;
+		this.encoder = encoder;
+		this.notificationService = notificationService;
+		this.downloadExecutor = downloadExecutor;
+	}
 
 	@Transactional
 	public boolean claim(Long profileId) {
@@ -52,11 +76,17 @@ public class PlantTimelapseTransactionService {
 		if (images.isEmpty()) {
 			throw new TimelapseEncodingException("No representative images available for profileId=" + profileId);
 		}
-		List<TimelapseSourceImage> sources = images.stream()
-				.map(image -> new TimelapseSourceImage(
+		// S3 다운로드는 이미지별로 독립적인 네트워크 I/O라 순차로 하나씩 기다릴 필요가 없다 —
+		// 모두 동시에 요청을 걸어두고 순서대로 join()해 결과를 모은다(순서는 images 순서 그대로
+		// join()하므로 유지된다). 반드시 전용 downloadExecutor를 쓴다 — 기본 ForkJoinPool.commonPool()은
+		// 앱 전체가 공유하는 자원이라 여기서 오래 붙잡으면 무관한 기능도 느려지고, timelapseTaskExecutor는
+		// 코어/맥스 1이라(지금 이 코드를 실행 중인 스레드가 바로 그 1개) 재사용하면 데드락이 난다.
+		List<CompletableFuture<TimelapseSourceImage>> downloads = images.stream()
+				.map(image -> CompletableFuture.supplyAsync(() -> new TimelapseSourceImage(
 						journalImageUploadService.downloadBytes(image.getImageUrl()),
-						extensionOf(image.getImageUrl())))
+						extensionOf(image.getImageUrl())), downloadExecutor))
 				.toList();
+		List<TimelapseSourceImage> sources = downloads.stream().map(this::joinUnwrapped).toList();
 		byte[] videoBytes = encoder.encode(sources);
 
 		Long ownerId = images.get(0).getUser().getId();
@@ -102,6 +132,21 @@ public class PlantTimelapseTransactionService {
 		Long ownerId = timelapse.getPlantProfile().getUser().getId();
 		notificationService.notify(ownerId, NotificationType.TIMELAPSE, title, content,
 				"/plants/" + timelapse.getPlantProfile().getId(), "PLANT_TIMELAPSE", timelapse.getPlantProfile().getId());
+	}
+
+	// CompletableFuture.join()은 원본 예외를 CompletionException으로 감싸서 던지는데, 그대로 두면
+	// PlantTimelapseWorker.failReasonOf()가 사용자에게 보여줄 실패 사유가
+	// "java.lang.RuntimeException: ..." 식으로 지저분해진다 — 원본 예외를 그대로 다시 던져 기존
+	// 실패 메시지 형식을 유지한다.
+	private TimelapseSourceImage joinUnwrapped(CompletableFuture<TimelapseSourceImage> future) {
+		try {
+			return future.join();
+		} catch (CompletionException exception) {
+			if (exception.getCause() instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			throw exception;
+		}
 	}
 
 	private String extensionOf(String imageUrl) {
