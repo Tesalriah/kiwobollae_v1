@@ -2,6 +2,7 @@ package com.kiwobollae.api.board.entity;
 
 import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -13,6 +14,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -61,6 +63,15 @@ public class BoardPost extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private BoardStatus status;
 
+	// orders.cancelledBy와 동일한 컨벤션 — 작성자 본인이 지웠는지 관리자가 숨겼는지 구분한다.
+	// HIDDEN일 때만 값이 있다.
+	@Enumerated(EnumType.STRING)
+	@Column(name = "hidden_by", length = 10)
+	private BoardHiddenBy hiddenBy;
+
+	@Column(name = "hidden_at")
+	private LocalDateTime hiddenAt;
+
 	public static BoardPost create(User user, BoardCategory category, String title, String content, Long journalId) {
 		return BoardPost.builder()
 				.user(user)
@@ -79,5 +90,11 @@ public class BoardPost extends BaseTimeEntity {
 	public void update(String title, String content) {
 		this.title = title;
 		this.content = content;
+	}
+
+	public void hide(BoardHiddenBy hiddenBy, LocalDateTime hiddenAt) {
+		this.status = BoardStatus.HIDDEN;
+		this.hiddenBy = hiddenBy;
+		this.hiddenAt = hiddenAt;
 	}
 }

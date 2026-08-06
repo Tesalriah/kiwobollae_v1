@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -18,6 +19,7 @@ import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.content.entity.PlantJournal;
@@ -213,6 +215,29 @@ class BoardPostServiceTest {
 		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 
 		assertThatThrownBy(() -> boardPostService.updatePost(2L, 10L, new BoardPostUpdateRequest("새 제목", "새 내용")))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_OWNED);
+	}
+
+	@Test
+	void deletePostHidesPostForOwner() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		boardPostService.deletePost(1L, 10L);
+
+		verify(post).hide(eq(BoardHiddenBy.AUTHOR), any());
+	}
+
+	@Test
+	void deletePostFailsWhenNotOwner() {
+		User owner = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, owner, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardPostService.deletePost(2L, 10L))
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_OWNED);

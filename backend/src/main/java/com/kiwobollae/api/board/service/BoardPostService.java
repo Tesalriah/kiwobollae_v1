@@ -8,11 +8,14 @@ import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BoardPostService {
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final BoardPostRepository boardPostRepository;
 	private final UserRepository userRepository;
@@ -66,6 +71,12 @@ public class BoardPostService {
 		BoardPost post = findOwnedActivePost(userId, id);
 		post.update(request.title(), request.content());
 		return BoardPostResponse.from(post);
+	}
+
+	@Transactional
+	public void deletePost(Long userId, Long id) {
+		BoardPost post = findOwnedActivePost(userId, id);
+		post.hide(BoardHiddenBy.AUTHOR, LocalDateTime.now(KST));
 	}
 
 	private BoardPost findOwnedActivePost(Long userId, Long id) {

@@ -19,6 +19,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -73,5 +74,12 @@ public class BoardController {
 			@Valid @RequestBody BoardPostUpdateRequest request
 	) {
 		return ResponseEntity.ok(ApiResponse.success(boardPostService.updatePost(userId, id, request)));
+	}
+
+	@Operation(summary = "게시글 삭제", description = "작성자 본인만 삭제할 수 있습니다. 물리 삭제 없이 숨김 처리합니다.")
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Void> deletePost(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+		boardPostService.deletePost(userId, id);
+		return ResponseEntity.noContent().build();
 	}
 }
