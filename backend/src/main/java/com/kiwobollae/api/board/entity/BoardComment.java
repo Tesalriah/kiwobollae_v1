@@ -1,0 +1,55 @@
+package com.kiwobollae.api.board.entity;
+
+import com.kiwobollae.api.auth.entity.User;
+import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.global.common.BaseTimeEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@Entity
+@Table(name = "board_comments", indexes = {
+		@Index(name = "idx_board_comments_post_id_created_at", columnList = "post_id, created_at"),
+		@Index(name = "idx_board_comments_user_id", columnList = "user_id")
+})
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
+public class BoardComment extends BaseTimeEntity {
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "post_id", nullable = false)
+	private BoardPost post;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "user_id", nullable = false)
+	private User user;
+
+	@Column(nullable = false, length = 500)
+	private String content;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private BoardStatus status;
+
+	public static BoardComment create(BoardPost post, User user, String content) {
+		return BoardComment.builder()
+				.post(post)
+				.user(user)
+				.content(content)
+				.status(BoardStatus.ACTIVE)
+				.build();
+	}
+}

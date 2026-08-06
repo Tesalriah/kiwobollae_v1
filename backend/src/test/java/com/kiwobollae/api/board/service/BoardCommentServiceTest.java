@@ -1,0 +1,114 @@
+package com.kiwobollae.api.board.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+import com.kiwobollae.api.auth.entity.User;
+import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.board.dto.request.BoardCommentCreateRequest;
+import com.kiwobollae.api.board.dto.response.BoardCommentResponse;
+import com.kiwobollae.api.board.entity.BoardComment;
+import com.kiwobollae.api.board.entity.BoardPost;
+import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.board.repository.BoardCommentRepository;
+import com.kiwobollae.api.board.repository.BoardPostRepository;
+import com.kiwobollae.api.global.exception.BusinessException;
+import com.kiwobollae.api.global.exception.ErrorCode;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class BoardCommentServiceTest {
+
+	@Mock private BoardCommentRepository boardCommentRepository;
+	@Mock private BoardPostRepository boardPostRepository;
+	@Mock private UserRepository userRepository;
+	@InjectMocks private BoardCommentService boardCommentService;
+
+	private User mockUser(Long id) {
+		User user = mock(User.class);
+		lenient().when(user.getId()).thenReturn(id);
+		lenient().when(user.getNickname()).thenReturn("초록이");
+		return user;
+	}
+
+	private BoardPost mockPost(Long id, BoardStatus status) {
+		BoardPost post = mock(BoardPost.class);
+		lenient().when(post.getId()).thenReturn(id);
+		lenient().when(post.getStatus()).thenReturn(status);
+		return post;
+	}
+
+	private BoardComment mockComment(Long id, BoardPost post, User user, String content) {
+		BoardComment comment = mock(BoardComment.class);
+		lenient().when(comment.getId()).thenReturn(id);
+		lenient().when(comment.getPost()).thenReturn(post);
+		lenient().when(comment.getUser()).thenReturn(user);
+		lenient().when(comment.getContent()).thenReturn(content);
+		return comment;
+	}
+
+	@Test
+	void createCommentSucceedsForActivePost() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment saved = mockComment(100L, post, user, "댓글 내용");
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(saved);
+
+		BoardCommentResponse response =
+				boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("댓글 내용"));
+
+		assertThat(response.id()).isEqualTo(100L);
+		verify(post).incrementCommentCount();
+	}
+
+	@Test
+	void createCommentFailsWhenPostNotFound() {
+		given(boardPostRepository.findById(404L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardCommentService.createComment(
+				1L, 404L, new BoardCommentCreateRequest("댓글 내용")
+		)).isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+	}
+
+	@Test
+	void createCommentFailsWhenPostHidden() {
+		BoardPost post = mockPost(10L, BoardStatus.HIDDEN);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardCommentService.createComment(
+				1L, 10L, new BoardCommentCreateRequest("댓글 내용")
+		)).isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+	}
+
+	@Test
+	void getCommentsReturnsActiveComments() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용");
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
+				.willReturn(List.of(comment));
+
+		List<BoardCommentResponse> responses = boardCommentService.getComments(10L);
+
+		assertThat(responses).hasSize(1);
+		assertThat(responses.get(0).id()).isEqualTo(100L);
+	}
+}

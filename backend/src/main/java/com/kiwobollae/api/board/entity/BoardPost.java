@@ -97,4 +97,13 @@ public class BoardPost extends BaseTimeEntity {
 		this.hiddenBy = hiddenBy;
 		this.hiddenAt = hiddenAt;
 	}
+
+	// board_post_likes/board_comments를 매번 COUNT하지 않도록 비정규화 캐시로 둔다.
+	public void incrementCommentCount() {
+		this.commentCount++;
+	}
+
+	public void decrementCommentCount() {
+		this.commentCount--;
+	}
 }
