@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,10 @@ public class BoardCommentService {
 		return boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE).stream()
 				.map(BoardCommentResponse::from)
 				.toList();
+	}
+
+	public Page<BoardCommentResponse> getMyComments(Long userId, Pageable pageable) {
+		return boardCommentRepository.findAllByUserId(userId, pageable).map(BoardCommentResponse::from);
 	}
 
 	@Transactional

@@ -30,6 +30,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class BoardCommentServiceTest {
@@ -152,6 +156,21 @@ class BoardCommentServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+	}
+
+	@Test
+	void getMyCommentsMapsRepositoryPage() {
+		Pageable pageable = PageRequest.of(0, 10);
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		Page<BoardComment> page = new PageImpl<>(List.of(comment));
+		given(boardCommentRepository.findAllByUserId(1L, pageable)).willReturn(page);
+
+		Page<BoardCommentResponse> result = boardCommentService.getMyComments(1L, pageable);
+
+		assertThat(result.getContent()).hasSize(1);
+		assertThat(result.getContent().get(0).id()).isEqualTo(100L);
 	}
 
 	@Test

@@ -69,6 +69,10 @@ public class BoardPostService {
 		return BoardPostResponse.from(findActivePost(id));
 	}
 
+	public Page<BoardPostResponse> getMyPosts(Long userId, Pageable pageable) {
+		return boardPostRepository.findAllByUserId(userId, pageable).map(BoardPostResponse::from);
+	}
+
 	// 다른 도메인(report)이 게시글 존재 여부만 확인할 때 쓰는 조회 전용 진입점.
 	public boolean existsActive(Long id) {
 		return boardPostRepository.findById(id)

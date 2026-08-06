@@ -247,6 +247,19 @@ class BoardPostServiceTest {
 	}
 
 	@Test
+	void getMyPostsMapsRepositoryPage() {
+		Pageable pageable = PageRequest.of(0, 10);
+		User user = mockUser(1L, UserRole.USER);
+		Page<BoardPost> page = new PageImpl<>(List.of(mockPost(10L, user, BoardStatus.HIDDEN)));
+		given(boardPostRepository.findAllByUserId(1L, pageable)).willReturn(page);
+
+		Page<BoardPostResponse> result = boardPostService.getMyPosts(1L, pageable);
+
+		assertThat(result.getContent()).hasSize(1);
+		assertThat(result.getContent().get(0).id()).isEqualTo(10L);
+	}
+
+	@Test
 	void adminHidePostHidesActivePost() {
 		User user = mockUser(1L, UserRole.USER);
 		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);

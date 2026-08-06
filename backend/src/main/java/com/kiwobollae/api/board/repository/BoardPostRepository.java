@@ -25,4 +25,9 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
 
 	@Query("select p from BoardPost p join fetch p.user where p.id = :id")
 	Optional<BoardPost> findByIdWithUser(@Param("id") Long id);
+
+	// 마이페이지 "내가 쓴 게시글" — 본인 글이라 상태(ACTIVE/HIDDEN) 필터 없이 전부 보여준다.
+	@Query(value = "select p from BoardPost p join fetch p.user where p.user.id = :userId",
+			countQuery = "select count(p) from BoardPost p where p.user.id = :userId")
+	Page<BoardPost> findAllByUserId(@Param("userId") Long userId, Pageable pageable);
 }
