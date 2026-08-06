@@ -68,8 +68,9 @@ class BoardPostServiceTest {
 	@Test
 	void createPostSucceedsForFreeCategory() {
 		User user = mockUser(1L, UserRole.USER);
+		BoardPost saved = mockPost(10L, user, BoardStatus.ACTIVE);
 		given(userRepository.getReferenceById(1L)).willReturn(user);
-		given(boardPostRepository.save(any(BoardPost.class))).willReturn(mockPost(10L, user, BoardStatus.ACTIVE));
+		given(boardPostRepository.save(any(BoardPost.class))).willReturn(saved);
 
 		BoardPostResponse response = boardPostService.createPost(
 				1L, new BoardPostCreateRequest(BoardCategory.FREE, "제목", "내용", null)
@@ -94,8 +95,9 @@ class BoardPostServiceTest {
 	@Test
 	void createPostSucceedsWhenAdminWritesNotice() {
 		User admin = mockUser(1L, UserRole.ADMIN);
+		BoardPost saved = mockPost(10L, admin, BoardStatus.ACTIVE);
 		given(userRepository.getReferenceById(1L)).willReturn(admin);
-		given(boardPostRepository.save(any(BoardPost.class))).willReturn(mockPost(10L, admin, BoardStatus.ACTIVE));
+		given(boardPostRepository.save(any(BoardPost.class))).willReturn(saved);
 
 		BoardPostResponse response = boardPostService.createPost(
 				1L, new BoardPostCreateRequest(BoardCategory.NOTICE, "공지", "내용", null)
@@ -132,9 +134,10 @@ class BoardPostServiceTest {
 	@Test
 	void createPostSucceedsWhenJournalOwnedByRequester() {
 		User user = mockUser(1L, UserRole.USER);
+		BoardPost saved = mockPost(10L, user, BoardStatus.ACTIVE);
 		given(userRepository.getReferenceById(1L)).willReturn(user);
 		given(plantJournalRepository.findOwnedActive(99L, 1L)).willReturn(Optional.of(mock(PlantJournal.class)));
-		given(boardPostRepository.save(any(BoardPost.class))).willReturn(mockPost(10L, user, BoardStatus.ACTIVE));
+		given(boardPostRepository.save(any(BoardPost.class))).willReturn(saved);
 
 		BoardPostResponse response = boardPostService.createPost(
 				1L, new BoardPostCreateRequest(BoardCategory.PLANT_QNA, "제목", "내용", 99L)
@@ -159,8 +162,8 @@ class BoardPostServiceTest {
 	@Test
 	void getPostReturnsActivePost() {
 		User user = mockUser(1L, UserRole.USER);
-		given(boardPostRepository.findByIdWithUser(10L))
-				.willReturn(Optional.of(mockPost(10L, user, BoardStatus.ACTIVE)));
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 
 		BoardPostResponse response = boardPostService.getPost(10L);
 
@@ -170,8 +173,8 @@ class BoardPostServiceTest {
 	@Test
 	void getPostFailsWhenHidden() {
 		User user = mockUser(1L, UserRole.USER);
-		given(boardPostRepository.findByIdWithUser(10L))
-				.willReturn(Optional.of(mockPost(10L, user, BoardStatus.HIDDEN)));
+		BoardPost post = mockPost(10L, user, BoardStatus.HIDDEN);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 
 		assertThatThrownBy(() -> boardPostService.getPost(10L))
 				.isInstanceOf(BusinessException.class)
