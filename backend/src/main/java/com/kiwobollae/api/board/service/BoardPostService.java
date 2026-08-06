@@ -7,9 +7,11 @@ import com.kiwobollae.api.board.dto.request.BoardPostCreateRequest;
 import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
+import com.kiwobollae.api.board.entity.BoardPostLike;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
 import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.board.repository.BoardPostLikeRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
@@ -30,6 +32,7 @@ public class BoardPostService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final BoardPostRepository boardPostRepository;
+	private final BoardPostLikeRepository boardPostLikeRepository;
 	private final UserRepository userRepository;
 	private final PlantJournalRepository plantJournalRepository;
 
@@ -77,6 +80,25 @@ public class BoardPostService {
 	public void deletePost(Long userId, Long id) {
 		BoardPost post = findOwnedActivePost(userId, id);
 		post.hide(BoardHiddenBy.AUTHOR, LocalDateTime.now(KST));
+	}
+
+	@Transactional
+	public void likePost(Long userId, Long id) {
+		BoardPost post = findActivePost(id);
+		if (boardPostLikeRepository.existsByPostIdAndUserId(id, userId)) {
+			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
+		}
+		User user = userRepository.getReferenceById(userId);
+		boardPostLikeRepository.save(BoardPostLike.create(post, user, LocalDateTime.now(KST)));
+		post.incrementLikeCount();
+	}
+
+	@Transactional
+	public void unlikePost(Long userId, Long id) {
+		BoardPostLike like = boardPostLikeRepository.findByPostIdAndUserId(id, userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_LIKE_NOT_FOUND));
+		boardPostLikeRepository.delete(like);
+		boardPostRepository.getReferenceById(id).decrementLikeCount();
 	}
 
 	private BoardPost findOwnedActivePost(Long userId, Long id) {

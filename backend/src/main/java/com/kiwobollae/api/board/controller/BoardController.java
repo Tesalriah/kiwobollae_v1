@@ -82,4 +82,18 @@ public class BoardController {
 		boardPostService.deletePost(userId, id);
 		return ResponseEntity.noContent().build();
 	}
+
+	@Operation(summary = "게시글 좋아요", description = "사용자당 게시글 1회 좋아요만 허용합니다.")
+	@PostMapping("/{id}/likes")
+	public ResponseEntity<Void> likePost(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+		boardPostService.likePost(userId, id);
+		return ResponseEntity.status(HttpStatus.CREATED).build();
+	}
+
+	@Operation(summary = "게시글 좋아요 취소", description = "이미 누른 좋아요를 취소합니다.")
+	@DeleteMapping("/{id}/likes")
+	public ResponseEntity<Void> unlikePost(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+		boardPostService.unlikePost(userId, id);
+		return ResponseEntity.noContent().build();
+	}
 }

@@ -18,9 +18,11 @@ import com.kiwobollae.api.board.dto.request.BoardPostCreateRequest;
 import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
+import com.kiwobollae.api.board.entity.BoardPostLike;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
 import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
+import com.kiwobollae.api.board.repository.BoardPostLikeRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.content.entity.PlantJournal;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
@@ -42,6 +44,7 @@ import org.springframework.data.domain.Pageable;
 class BoardPostServiceTest {
 
 	@Mock private BoardPostRepository boardPostRepository;
+	@Mock private BoardPostLikeRepository boardPostLikeRepository;
 	@Mock private UserRepository userRepository;
 	@Mock private PlantJournalRepository plantJournalRepository;
 	@InjectMocks private BoardPostService boardPostService;
@@ -241,5 +244,55 @@ class BoardPostServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_OWNED);
+	}
+
+	@Test
+	void likePostSucceedsWhenNotAlreadyLiked() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+		given(boardPostLikeRepository.existsByPostIdAndUserId(10L, 1L)).willReturn(false);
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+
+		boardPostService.likePost(1L, 10L);
+
+		verify(post).incrementLikeCount();
+	}
+
+	@Test
+	void likePostFailsWhenAlreadyLiked() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+		given(boardPostLikeRepository.existsByPostIdAndUserId(10L, 1L)).willReturn(true);
+
+		assertThatThrownBy(() -> boardPostService.likePost(1L, 10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_ALREADY_LIKED);
+	}
+
+	@Test
+	void unlikePostSucceedsWhenLiked() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		BoardPostLike like = mock(BoardPostLike.class);
+		given(boardPostLikeRepository.findByPostIdAndUserId(10L, 1L)).willReturn(Optional.of(like));
+		given(boardPostRepository.getReferenceById(10L)).willReturn(post);
+
+		boardPostService.unlikePost(1L, 10L);
+
+		verify(boardPostLikeRepository).delete(like);
+		verify(post).decrementLikeCount();
+	}
+
+	@Test
+	void unlikePostFailsWhenNotLiked() {
+		given(boardPostLikeRepository.findByPostIdAndUserId(10L, 1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardPostService.unlikePost(1L, 10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_LIKE_NOT_FOUND);
 	}
 }

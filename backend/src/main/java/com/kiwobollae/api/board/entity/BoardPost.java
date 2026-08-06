@@ -106,4 +106,12 @@ public class BoardPost extends BaseTimeEntity {
 	public void decrementCommentCount() {
 		this.commentCount--;
 	}
+
+	public void incrementLikeCount() {
+		this.likeCount++;
+	}
+
+	public void decrementLikeCount() {
+		this.likeCount--;
+	}
 }
