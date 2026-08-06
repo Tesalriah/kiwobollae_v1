@@ -3,6 +3,7 @@ package com.kiwobollae.api.board.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -14,6 +15,7 @@ import com.kiwobollae.api.board.dto.request.BoardCommentCreateRequest;
 import com.kiwobollae.api.board.dto.response.BoardCommentResponse;
 import com.kiwobollae.api.board.entity.BoardComment;
 import com.kiwobollae.api.board.entity.BoardPost;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
@@ -49,12 +51,13 @@ class BoardCommentServiceTest {
 		return post;
 	}
 
-	private BoardComment mockComment(Long id, BoardPost post, User user, String content) {
+	private BoardComment mockComment(Long id, BoardPost post, User user, String content, BoardStatus status) {
 		BoardComment comment = mock(BoardComment.class);
 		lenient().when(comment.getId()).thenReturn(id);
 		lenient().when(comment.getPost()).thenReturn(post);
 		lenient().when(comment.getUser()).thenReturn(user);
 		lenient().when(comment.getContent()).thenReturn(content);
+		lenient().when(comment.getStatus()).thenReturn(status);
 		return comment;
 	}
 
@@ -62,7 +65,7 @@ class BoardCommentServiceTest {
 	void createCommentSucceedsForActivePost() {
 		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
 		User user = mockUser(1L);
-		BoardComment saved = mockComment(100L, post, user, "댓글 내용");
+		BoardComment saved = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
 		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
 		given(userRepository.getReferenceById(1L)).willReturn(user);
 		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(saved);
@@ -101,7 +104,7 @@ class BoardCommentServiceTest {
 	void getCommentsReturnsActiveComments() {
 		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
 		User user = mockUser(1L);
-		BoardComment comment = mockComment(100L, post, user, "댓글 내용");
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
 		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
 		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
 				.willReturn(List.of(comment));
@@ -110,5 +113,41 @@ class BoardCommentServiceTest {
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).id()).isEqualTo(100L);
+	}
+
+	@Test
+	void deleteCommentHidesCommentAndDecrementsPostCount() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+
+		boardCommentService.deleteComment(1L, 100L);
+
+		verify(comment).hide(eq(BoardHiddenBy.AUTHOR), any());
+		verify(post).decrementCommentCount();
+	}
+
+	@Test
+	void deleteCommentFailsWhenNotOwner() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User owner = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, owner, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+
+		assertThatThrownBy(() -> boardCommentService.deleteComment(2L, 100L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_OWNED);
+	}
+
+	@Test
+	void deleteCommentFailsWhenNotFound() {
+		given(boardCommentRepository.findByIdWithUser(404L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardCommentService.deleteComment(1L, 404L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
 	}
 }

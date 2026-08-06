@@ -1,6 +1,7 @@
 package com.kiwobollae.api.board.entity;
 
 import com.kiwobollae.api.auth.entity.User;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -12,6 +13,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -44,6 +46,13 @@ public class BoardComment extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private BoardStatus status;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "hidden_by", length = 10)
+	private BoardHiddenBy hiddenBy;
+
+	@Column(name = "hidden_at")
+	private LocalDateTime hiddenAt;
+
 	public static BoardComment create(BoardPost post, User user, String content) {
 		return BoardComment.builder()
 				.post(post)
@@ -51,5 +60,11 @@ public class BoardComment extends BaseTimeEntity {
 				.content(content)
 				.status(BoardStatus.ACTIVE)
 				.build();
+	}
+
+	public void hide(BoardHiddenBy hiddenBy, LocalDateTime hiddenAt) {
+		this.status = BoardStatus.HIDDEN;
+		this.hiddenBy = hiddenBy;
+		this.hiddenAt = hiddenAt;
 	}
 }

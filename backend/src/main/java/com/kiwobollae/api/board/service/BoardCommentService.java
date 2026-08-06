@@ -6,11 +6,14 @@ import com.kiwobollae.api.board.dto.request.BoardCommentCreateRequest;
 import com.kiwobollae.api.board.dto.response.BoardCommentResponse;
 import com.kiwobollae.api.board.entity.BoardComment;
 import com.kiwobollae.api.board.entity.BoardPost;
+import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BoardCommentService {
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final BoardCommentRepository boardCommentRepository;
 	private final BoardPostRepository boardPostRepository;
@@ -39,6 +44,20 @@ public class BoardCommentService {
 		return boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE).stream()
 				.map(BoardCommentResponse::from)
 				.toList();
+	}
+
+	@Transactional
+	public void deleteComment(Long userId, Long commentId) {
+		BoardComment comment = boardCommentRepository.findByIdWithUser(commentId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND));
+		if (comment.getStatus() != BoardStatus.ACTIVE) {
+			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+		}
+		if (!comment.getUser().getId().equals(userId)) {
+			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_OWNED);
+		}
+		comment.hide(BoardHiddenBy.AUTHOR, LocalDateTime.now(KST));
+		comment.getPost().decrementCommentCount();
 	}
 
 	private BoardPost findActivePost(Long postId) {
