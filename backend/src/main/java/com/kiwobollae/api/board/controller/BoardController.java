@@ -1,6 +1,7 @@
 package com.kiwobollae.api.board.controller;
 
 import com.kiwobollae.api.board.dto.request.BoardPostCreateRequest;
+import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
 import com.kiwobollae.api.board.service.BoardPostService;
@@ -19,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -61,5 +63,15 @@ public class BoardController {
 	@GetMapping("/{id}")
 	public ResponseEntity<ApiResponse<BoardPostResponse>> getPost(@PathVariable Long id) {
 		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPost(id)));
+	}
+
+	@Operation(summary = "게시글 수정", description = "작성자 본인만 제목/본문을 수정할 수 있습니다. 카테고리는 변경할 수 없습니다.")
+	@PatchMapping("/{id}")
+	public ResponseEntity<ApiResponse<BoardPostResponse>> updatePost(
+			@AuthenticationPrincipal Long userId,
+			@PathVariable Long id,
+			@Valid @RequestBody BoardPostUpdateRequest request
+	) {
+		return ResponseEntity.ok(ApiResponse.success(boardPostService.updatePost(userId, id, request)));
 	}
 }

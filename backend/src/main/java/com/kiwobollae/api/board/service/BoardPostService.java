@@ -4,6 +4,7 @@ import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.auth.entity.enums.UserRole;
 import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.board.dto.request.BoardPostCreateRequest;
+import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
@@ -58,6 +59,21 @@ public class BoardPostService {
 
 	public BoardPostResponse getPost(Long id) {
 		return BoardPostResponse.from(findActivePost(id));
+	}
+
+	@Transactional
+	public BoardPostResponse updatePost(Long userId, Long id, BoardPostUpdateRequest request) {
+		BoardPost post = findOwnedActivePost(userId, id);
+		post.update(request.title(), request.content());
+		return BoardPostResponse.from(post);
+	}
+
+	private BoardPost findOwnedActivePost(Long userId, Long id) {
+		BoardPost post = findActivePost(id);
+		if (!post.getUser().getId().equals(userId)) {
+			throw new BusinessException(ErrorCode.BOARD_POST_NOT_OWNED);
+		}
+		return post;
 	}
 
 	private BoardPost findActivePost(Long id) {

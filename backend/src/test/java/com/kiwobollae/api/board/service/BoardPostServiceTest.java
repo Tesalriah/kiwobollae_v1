@@ -14,6 +14,7 @@ import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.auth.entity.enums.UserRole;
 import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.board.dto.request.BoardPostCreateRequest;
+import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.BoardPost;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
@@ -190,5 +191,30 @@ class BoardPostServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+	}
+
+	@Test
+	void updatePostSucceedsForOwner() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		BoardPostResponse response =
+				boardPostService.updatePost(1L, 10L, new BoardPostUpdateRequest("새 제목", "새 내용"));
+
+		verify(post).update("새 제목", "새 내용");
+		assertThat(response.id()).isEqualTo(10L);
+	}
+
+	@Test
+	void updatePostFailsWhenNotOwner() {
+		User owner = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, owner, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardPostService.updatePost(2L, 10L, new BoardPostUpdateRequest("새 제목", "새 내용")))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_OWNED);
 	}
 }

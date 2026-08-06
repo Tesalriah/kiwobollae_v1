@@ -74,4 +74,10 @@ public class BoardPost extends BaseTimeEntity {
 				.status(BoardStatus.ACTIVE)
 				.build();
 	}
+
+	// products.category처럼 카테고리는 생성 후 변경하지 않는 컨벤션을 따른다. 제목/본문만 수정한다.
+	public void update(String title, String content) {
+		this.title = title;
+		this.content = content;
+	}
 }

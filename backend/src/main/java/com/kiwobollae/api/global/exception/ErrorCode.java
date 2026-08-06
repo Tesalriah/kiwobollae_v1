@@ -136,7 +136,8 @@ public enum ErrorCode {
 	BOARD_POST_NOT_FOUND(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."),
 	BOARD_NOTICE_FORBIDDEN(HttpStatus.FORBIDDEN, "공지사항은 관리자만 작성할 수 있습니다."),
 	BOARD_JOURNAL_REQUIRED(HttpStatus.BAD_REQUEST, "식물 Q&A는 연동할 일지를 선택해야 합니다."),
-	BOARD_JOURNAL_NOT_OWNED(HttpStatus.UNPROCESSABLE_CONTENT, "본인이 작성한 일지만 연동할 수 있습니다.");
+	BOARD_JOURNAL_NOT_OWNED(HttpStatus.UNPROCESSABLE_CONTENT, "본인이 작성한 일지만 연동할 수 있습니다."),
+	BOARD_POST_NOT_OWNED(HttpStatus.FORBIDDEN, "본인이 작성한 게시글만 수정·삭제할 수 있습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String defaultMessage;
