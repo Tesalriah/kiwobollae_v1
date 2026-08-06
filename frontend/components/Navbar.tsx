@@ -18,6 +18,7 @@ const NOTIF_ICON: Record<NotificationType, string> = {
   JOURNAL_REMINDER: '🌱',
   INQUIRY: '💬',
   NOTICE: '📢',
+  TIMELAPSE: '🎬',
 };
 
 const NAV = [
