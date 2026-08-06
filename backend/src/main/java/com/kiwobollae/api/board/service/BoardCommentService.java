@@ -42,6 +42,13 @@ public class BoardCommentService {
 		return BoardCommentResponse.from(comment);
 	}
 
+	// 다른 도메인(report)이 댓글 존재 여부만 확인할 때 쓰는 조회 전용 진입점.
+	public boolean existsActive(Long id) {
+		return boardCommentRepository.findByIdWithUser(id)
+				.map(comment -> comment.getStatus() == BoardStatus.ACTIVE)
+				.orElse(false);
+	}
+
 	public List<BoardCommentResponse> getComments(Long postId) {
 		findActivePost(postId);
 		return boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE).stream()

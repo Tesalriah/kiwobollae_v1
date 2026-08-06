@@ -69,6 +69,13 @@ public class BoardPostService {
 		return BoardPostResponse.from(findActivePost(id));
 	}
 
+	// 다른 도메인(report)이 게시글 존재 여부만 확인할 때 쓰는 조회 전용 진입점.
+	public boolean existsActive(Long id) {
+		return boardPostRepository.findById(id)
+				.map(post -> post.getStatus() == BoardStatus.ACTIVE)
+				.orElse(false);
+	}
+
 	@Transactional
 	public BoardPostResponse updatePost(Long userId, Long id, BoardPostUpdateRequest request) {
 		BoardPost post = findOwnedActivePost(userId, id);
