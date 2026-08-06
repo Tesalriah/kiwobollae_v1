@@ -67,7 +67,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
 	// PAID∧PREPARING일 때만 취소 허용. 배송이 시작됐거나 이미 취소/확정된 주문은 0건 반환.
 	// cancelReason/cancelledBy는 사용자 본인 취소 시 각각 null/USER로 넘어온다.
-	@Modifying
+	// clearAutomatically 없이는 호출 전에 로드해둔 Order가 영속성 컨텍스트에 PAID로 캐시된 채 남아,
+	// 이후 같은 id를 재조회해도 갱신 전 상태를 그대로 반환한다(OrderManagementService.adminCancelOrder).
+	@Modifying(clearAutomatically = true)
 	@Query("update Order o set o.status = :cancelled, o.cancelledAt = :cancelledAt, "
 			+ "o.cancelReason = :cancelReason, o.cancelledBy = :cancelledBy "
 			+ "where o.id = :id and o.status = :paid and o.deliveryStatus = :preparing")
