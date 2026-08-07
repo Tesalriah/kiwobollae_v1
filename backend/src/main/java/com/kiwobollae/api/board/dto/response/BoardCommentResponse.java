@@ -9,6 +9,7 @@ public record BoardCommentResponse(
 		Long userId,
 		String nickname,
 		String content,
+		Long parentCommentId,
 		Integer likeCount,
 		LocalDateTime createdAt,
 		LocalDateTime updatedAt
@@ -20,6 +21,7 @@ public record BoardCommentResponse(
 				comment.getUser().getId(),
 				comment.getUser().getNickname(),
 				comment.getContent(),
+				comment.getParentComment() != null ? comment.getParentComment().getId() : null,
 				comment.getLikeCount(),
 				comment.getCreatedAt(),
 				comment.getUpdatedAt()

@@ -24,7 +24,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "board_comments", indexes = {
 		@Index(name = "idx_board_comments_post_id_created_at", columnList = "post_id, created_at"),
-		@Index(name = "idx_board_comments_user_id", columnList = "user_id")
+		@Index(name = "idx_board_comments_user_id", columnList = "user_id"),
+		@Index(name = "idx_board_comments_parent_comment_id", columnList = "parent_comment_id")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -38,6 +39,11 @@ public class BoardComment extends BaseTimeEntity {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
+
+	// 답글의 답글까지 깊이 제한 없이 허용한다. null이면 최상위 댓글.
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "parent_comment_id")
+	private BoardComment parentComment;
 
 	@Column(nullable = false, length = 500)
 	private String content;
@@ -56,11 +62,12 @@ public class BoardComment extends BaseTimeEntity {
 	@Column(name = "hidden_at")
 	private LocalDateTime hiddenAt;
 
-	public static BoardComment create(BoardPost post, User user, String content) {
+	public static BoardComment create(BoardPost post, User user, String content, BoardComment parentComment) {
 		return BoardComment.builder()
 				.post(post)
 				.user(user)
 				.content(content)
+				.parentComment(parentComment)
 				.likeCount(0)
 				.status(BoardStatus.ACTIVE)
 				.build();

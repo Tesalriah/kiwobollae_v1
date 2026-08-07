@@ -38,8 +38,11 @@ public class BoardCommentService {
 	@Transactional
 	public BoardCommentResponse createComment(Long userId, Long postId, BoardCommentCreateRequest request) {
 		BoardPost post = findActivePost(postId);
+		BoardComment parent = request.parentCommentId() != null
+				? findActiveCommentInPost(request.parentCommentId(), postId)
+				: null;
 		User user = userRepository.getReferenceById(userId);
-		BoardComment comment = boardCommentRepository.save(BoardComment.create(post, user, request.content()));
+		BoardComment comment = boardCommentRepository.save(BoardComment.create(post, user, request.content(), parent));
 		post.incrementCommentCount();
 		return BoardCommentResponse.from(comment);
 	}
@@ -105,6 +108,16 @@ public class BoardCommentService {
 			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND);
 		}
 		return comment;
+	}
+
+	// 답글의 부모 댓글은 같은 게시글에 속한 활성 댓글이어야 한다. 다른 게시글의 댓글을 부모로
+	// 지정하거나, 숨겨진/존재하지 않는 댓글을 지정하면 전부 "댓글을 찾을 수 없음"으로 취급한다.
+	private BoardComment findActiveCommentInPost(Long commentId, Long postId) {
+		BoardComment parent = findActiveComment(commentId);
+		if (!parent.getPost().getId().equals(postId)) {
+			throw new BusinessException(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+		}
+		return parent;
 	}
 
 	private BoardPost findActivePost(Long postId) {

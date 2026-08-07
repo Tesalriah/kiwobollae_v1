@@ -78,7 +78,7 @@ class BoardCommentServiceTest {
 		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(saved);
 
 		BoardCommentResponse response =
-				boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("댓글 내용"));
+				boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("댓글 내용", null));
 
 		assertThat(response.id()).isEqualTo(100L);
 		verify(post).incrementCommentCount();
@@ -89,7 +89,7 @@ class BoardCommentServiceTest {
 		given(boardPostRepository.findById(404L)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> boardCommentService.createComment(
-				1L, 404L, new BoardCommentCreateRequest("댓글 내용")
+				1L, 404L, new BoardCommentCreateRequest("댓글 내용", null)
 		)).isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
@@ -101,10 +101,73 @@ class BoardCommentServiceTest {
 		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
 
 		assertThatThrownBy(() -> boardCommentService.createComment(
-				1L, 10L, new BoardCommentCreateRequest("댓글 내용")
+				1L, 10L, new BoardCommentCreateRequest("댓글 내용", null)
 		)).isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+	}
+
+	@Test
+	void createReplySucceedsWhenParentIsActiveAndInSamePost() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment parent = mockComment(100L, post, user, "부모 댓글", BoardStatus.ACTIVE);
+		BoardComment reply = mockComment(101L, post, user, "답글 내용", BoardStatus.ACTIVE);
+		lenient().when(reply.getParentComment()).thenReturn(parent);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(parent));
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(reply);
+
+		BoardCommentResponse response =
+				boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("답글 내용", 100L));
+
+		assertThat(response.id()).isEqualTo(101L);
+		assertThat(response.parentCommentId()).isEqualTo(100L);
+	}
+
+	@Test
+	void createReplyFailsWhenParentNotFound() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findByIdWithUser(999L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardCommentService.createComment(
+				1L, 10L, new BoardCommentCreateRequest("답글 내용", 999L)
+		)).isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+	}
+
+	@Test
+	void createReplyFailsWhenParentBelongsToDifferentPost() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		BoardPost otherPost = mockPost(20L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment parentInOtherPost = mockComment(100L, otherPost, user, "다른 글의 댓글", BoardStatus.ACTIVE);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(parentInOtherPost));
+
+		assertThatThrownBy(() -> boardCommentService.createComment(
+				1L, 10L, new BoardCommentCreateRequest("답글 내용", 100L)
+		)).isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
+	}
+
+	@Test
+	void createReplyFailsWhenParentHidden() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment hiddenParent = mockComment(100L, post, user, "삭제된 댓글", BoardStatus.HIDDEN);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(hiddenParent));
+
+		assertThatThrownBy(() -> boardCommentService.createComment(
+				1L, 10L, new BoardCommentCreateRequest("답글 내용", 100L)
+		)).isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_COMMENT_NOT_FOUND);
 	}
 
 	@Test
