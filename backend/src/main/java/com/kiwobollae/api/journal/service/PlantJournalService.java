@@ -15,7 +15,7 @@ import com.kiwobollae.api.plantProfile.entity.PlantProfile;
 import com.kiwobollae.api.journal.repository.JournalImageRepository;
 import com.kiwobollae.api.journal.repository.PlantJournalRepository;
 import com.kiwobollae.api.plantProfile.repository.PlantProfileRepository;
-import com.kiwobollae.api.plantProfile.service.JournalImageUploadService;
+import com.kiwobollae.api.plantProfile.service.PlantProfileService;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.point.dto.response.JournalRewardResult;
@@ -45,6 +45,7 @@ public class PlantJournalService {
 	private final PlantJournalRepository plantJournalRepository;
 	private final JournalImageRepository journalImageRepository;
 	private final PlantProfileRepository plantProfileRepository;
+	private final PlantProfileService plantProfileService;
 	private final UserRepository userRepository;
 	private final WalletService walletService;
 	private final GachaRewardReservationService gachaRewardReservationService;
@@ -67,6 +68,14 @@ public class PlantJournalService {
 						img.representative(), today))
 				.toList();
 		journalImageRepository.saveAll(images);
+
+		// 오늘의 사진 중 대표(★)로 고른 사진을 항상 식물 대표사진으로도 반영한다.
+		String representativeImageUrl = images.stream()
+				.filter(JournalImage::isRepresentative)
+				.findFirst()
+				.orElseThrow()
+				.getImageUrl();
+		plantProfileService.updateThumbnail(userId, profile, representativeImageUrl);
 
 		// 작성완료 체크(1식물 1일 1회, 매일 리셋): 오늘 아직 지급 안 됐을 때만 원자적으로 클레임하고,
 		// 클레임에 성공한 경우에만 point 도메인에 실제 지급을 요청한다(동시 요청 중복 지급 방지).
@@ -144,6 +153,14 @@ public class PlantJournalService {
 				.filter(url -> !keptUrls.contains(url))
 				.forEach(url -> journalImageUploadService.delete(url, userId));
 
+		// 수정 후 대표(★)로 고른 사진도 createJournal과 동일하게 항상 식물 대표사진으로 반영한다.
+		String representativeImageUrl = images.stream()
+				.filter(JournalImage::isRepresentative)
+				.findFirst()
+				.orElseThrow()
+				.getImageUrl();
+		plantProfileService.updateThumbnail(userId, journal.getPlantProfile(), representativeImageUrl);
+
 		return PlantJournalResponse.from(journal, images);
 	}
 
@@ -155,6 +172,13 @@ public class PlantJournalService {
 		journal.softDelete(LocalDateTime.now(KST));
 		// 작성 보상은 삭제 여부와 무관하게 확정 지급한다. 당일 클레임도 유지하므로
 		// 삭제 후 같은 식물 프로필로 다시 작성해도 당일 추가 보상은 지급되지 않는다.
+
+		// 삭제되는 일지의 대표(★) 사진이 식물 대표사진으로 반영돼 있었다면, 대체할 사진이 없으므로 비운다.
+		images.stream()
+				.filter(JournalImage::isRepresentative)
+				.findFirst()
+				.ifPresent(representative ->
+						plantProfileService.clearThumbnailIfMatches(userId, journal.getPlantProfile(), representative.getImageUrl()));
 
 		// soft delete는 사용자에게만 "삭제됨"으로 보일 뿐 복구 API가 없어 사실상 영구 삭제와
 		// 같으므로, 더 이상 어떤 일지도 참조하지 않는 S3 객체를 이 시점에 정리한다.

@@ -10,7 +10,7 @@ import com.kiwobollae.api.plantProfile.dto.request.PlantProfileUpdateRequest;
 import com.kiwobollae.api.plantProfile.dto.response.PlantProfileResponse;
 import com.kiwobollae.api.journal.entity.JournalImage;
 import com.kiwobollae.api.plantProfile.entity.PlantProfile;
-import com.kiwobollae.api.journal.service.PlantImageUploadService;
+import com.kiwobollae.api.journal.service.JournalImageUploadService;
 import com.kiwobollae.api.species.entity.PlantSpecies;
 import com.kiwobollae.api.plantProfile.entity.enums.PlantStatus;
 import com.kiwobollae.api.journal.repository.JournalImageRepository;
@@ -35,6 +35,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class PlantProfileServiceTest {
@@ -159,6 +161,111 @@ class PlantProfileServiceTest {
 		plantProfileService.updateProfile(7L, 21L, request);
 
 		verify(plantImageUploadService, never()).delete(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong());
+	}
+
+	// ---- updateThumbnail ----
+	// updateThumbnail()은 S3 삭제를 트랜잭션 afterCommit까지 미룬다 — 여기서는 실제 Spring 트랜잭션
+	// 없이 TransactionSynchronizationManager를 직접 열고/닫아 커밋·롤백 각각을 시뮬레이션한다.
+
+	@Test
+	void updateThumbnailReplacesImageAndCleansUpPreviousUploadAfterCommit() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/plants/7/old.jpg");
+
+		runInCommittedTransaction(() ->
+				plantProfileService.updateThumbnail(7L, profile, "https://cdn.test/journals/7/new.jpg"));
+
+		assertThat(profile.getPlantImage()).isEqualTo("https://cdn.test/journals/7/new.jpg");
+		verify(plantImageUploadService).delete("https://cdn.test/plants/7/old.jpg", 7L);
+	}
+
+	@Test
+	void updateThumbnailSkipsCleanupWhenPreviousWasEmoji() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "emoji:🌱");
+
+		runInCommittedTransaction(() ->
+				plantProfileService.updateThumbnail(7L, profile, "https://cdn.test/journals/7/new.jpg"));
+
+		assertThat(profile.getPlantImage()).isEqualTo("https://cdn.test/journals/7/new.jpg");
+		verifyNoInteractions(plantImageUploadService);
+	}
+
+	@Test
+	void updateThumbnailDoesNothingWhenUrlUnchanged() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/plants/7/same.jpg");
+
+		plantProfileService.updateThumbnail(7L, profile, "https://cdn.test/plants/7/same.jpg");
+
+		verifyNoInteractions(plantImageUploadService);
+	}
+
+	@Test
+	void updateThumbnailSkipsS3CleanupWhenTransactionRollsBack() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/plants/7/old.jpg");
+
+		// afterCommit을 트리거하지 않고 그대로 닫는다 — 트랜잭션 롤백 시 afterCommit이 호출되지 않는 것과 동일하다.
+		runInRolledBackTransaction(() ->
+				plantProfileService.updateThumbnail(7L, profile, "https://cdn.test/journals/7/new.jpg"));
+
+		verifyNoInteractions(plantImageUploadService);
+	}
+
+	// ---- clearThumbnailIfMatches ----
+
+	@Test
+	void clearThumbnailIfMatchesClearsAndCleansUpWhenUrlMatches() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/journals/7/thumb.jpg");
+
+		runInCommittedTransaction(() ->
+				plantProfileService.clearThumbnailIfMatches(7L, profile, "https://cdn.test/journals/7/thumb.jpg"));
+
+		assertThat(profile.getPlantImage()).isNull();
+		verify(plantImageUploadService).delete("https://cdn.test/journals/7/thumb.jpg", 7L);
+	}
+
+	@Test
+	void clearThumbnailIfMatchesDoesNothingWhenUrlAlreadyReplaced() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/plants/7/other.jpg");
+
+		plantProfileService.clearThumbnailIfMatches(7L, profile, "https://cdn.test/journals/7/thumb.jpg");
+
+		assertThat(profile.getPlantImage()).isEqualTo("https://cdn.test/plants/7/other.jpg");
+		verifyNoInteractions(plantImageUploadService);
+	}
+
+	@Test
+	void clearThumbnailIfMatchesSkipsS3CleanupWhenTransactionRollsBack() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, "https://cdn.test/journals/7/thumb.jpg");
+
+		runInRolledBackTransaction(() ->
+				plantProfileService.clearThumbnailIfMatches(7L, profile, "https://cdn.test/journals/7/thumb.jpg"));
+
+		verifyNoInteractions(plantImageUploadService);
+	}
+
+	private void runInCommittedTransaction(Runnable action) {
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			action.run();
+			TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
+	}
+
+	private void runInRolledBackTransaction(Runnable action) {
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			action.run();
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
 	}
 
 	// ---- getMyProfiles ----

@@ -22,7 +22,7 @@ import com.kiwobollae.api.plantProfile.entity.PlantProfile;
 import com.kiwobollae.api.journal.repository.JournalImageRepository;
 import com.kiwobollae.api.journal.repository.PlantJournalRepository;
 import com.kiwobollae.api.plantProfile.repository.PlantProfileRepository;
-import com.kiwobollae.api.plantProfile.service.JournalImageUploadService;
+import com.kiwobollae.api.plantProfile.service.PlantProfileService;
 import com.kiwobollae.api.point.dto.response.JournalRewardResult;
 import com.kiwobollae.api.point.service.WalletService;
 import java.time.LocalDate;
@@ -45,6 +45,7 @@ class PlantJournalServiceTest {
 	@Mock private PlantJournalRepository plantJournalRepository;
 	@Mock private JournalImageRepository journalImageRepository;
 	@Mock private PlantProfileRepository plantProfileRepository;
+	@Mock private PlantProfileService plantProfileService;
 	@Mock private UserRepository userRepository;
 	@Mock private WalletService walletService;
 	@Mock private GachaRewardReservationService gachaRewardReservationService;
@@ -131,6 +132,39 @@ class PlantJournalServiceTest {
 	}
 
 	@Test
+	void createJournalAlwaysUpdatesPlantThumbnailWithRepresentativeImage() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, null);
+		PlantJournalRequest request = new PlantJournalRequest(
+				21L,
+				"대표사진 지정 테스트",
+				List.of(new JournalImageRequest("https://example.test/thumb.jpg", "hash-thumb", true))
+		);
+		given(plantProfileRepository.findByIdAndUserId(21L, 7L))
+				.willReturn(Optional.of(profile));
+		given(journalImageRepository.findExistingHashes(
+				eq(7L),
+				eq(List.of("hash-thumb")),
+				any(LocalDate.class)
+		)).willReturn(List.of());
+		given(userRepository.getReferenceById(7L)).willReturn(user);
+		given(plantJournalRepository.save(any(PlantJournal.class))).willAnswer(invocation -> {
+			PlantJournal journal = invocation.getArgument(0);
+			ReflectionTestUtils.setField(journal, "id", 33L);
+			return journal;
+		});
+		given(plantProfileRepository.claimJournalReward(
+				eq(21L),
+				any(LocalDateTime.class),
+				any(LocalDateTime.class)
+		)).willReturn(0);
+
+		plantJournalService.createJournal(7L, request);
+
+		verify(plantProfileService).updateThumbnail(7L, profile, "https://example.test/thumb.jpg");
+	}
+
+	@Test
 	void deleteRewardedJournalKeepsRewardClaimAndDoesNotChangePoints() {
 		User user = user(7L);
 		LocalDateTime grantedAt = LocalDateTime.now(KST);
@@ -144,6 +178,36 @@ class PlantJournalServiceTest {
 		assertThat(journal.getDeletedAt()).isNotNull();
 		assertThat(profile.getJournalRewardGrantedAt()).isEqualTo(grantedAt);
 		verifyNoInteractions(walletService);
+	}
+
+	@Test
+	void deleteJournalClearsPlantThumbnailWhenRepresentativeImageMatches() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, null);
+		PlantJournal journal = journal(31L, user, profile);
+		given(plantJournalRepository.findOwnedActive(31L, 7L)).willReturn(Optional.of(journal));
+		given(journalImageRepository.findByJournalId(31L)).willReturn(List.of(
+				journalImage("https://example.test/thumb.jpg", true)
+		));
+
+		plantJournalService.deleteJournal(7L, 31L);
+
+		verify(plantProfileService).clearThumbnailIfMatches(7L, profile, "https://example.test/thumb.jpg");
+	}
+
+	@Test
+	void deleteJournalDoesNotTouchThumbnailWhenNoImageIsRepresentative() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, null);
+		PlantJournal journal = journal(31L, user, profile);
+		given(plantJournalRepository.findOwnedActive(31L, 7L)).willReturn(Optional.of(journal));
+		given(journalImageRepository.findByJournalId(31L)).willReturn(List.of(
+				journalImage("https://example.test/a.jpg")
+		));
+
+		plantJournalService.deleteJournal(7L, 31L);
+
+		verifyNoInteractions(plantProfileService);
 	}
 
 	@Test
@@ -192,9 +256,37 @@ class PlantJournalServiceTest {
 		verify(journalImageUploadService, never()).delete("https://example.test/new.jpg", 7L);
 	}
 
+	@Test
+	void updateJournalUpdatesPlantThumbnailWithNewRepresentativeImage() {
+		User user = user(7L);
+		PlantProfile profile = profile(21L, user, null);
+		PlantJournal journal = journal(31L, user, profile);
+		given(plantJournalRepository.findOwnedActive(31L, 7L)).willReturn(Optional.of(journal));
+		given(journalImageRepository.findByJournalId(31L)).willReturn(List.of(
+				journalImage("https://example.test/old.jpg", true)
+		));
+		PlantJournalUpdateRequest request = new PlantJournalUpdateRequest(
+				"수정된 기록",
+				List.of(new JournalImageRequest("https://example.test/new-thumb.jpg", "hash-new-thumb", true))
+		);
+		given(journalImageRepository.findExistingHashes(
+				eq(7L), eq(List.of("hash-new-thumb")), any(LocalDate.class)
+		)).willReturn(List.of());
+		given(userRepository.getReferenceById(7L)).willReturn(user);
+
+		plantJournalService.updateJournal(7L, 31L, request);
+
+		verify(plantProfileService).updateThumbnail(7L, profile, "https://example.test/new-thumb.jpg");
+	}
+
 	private JournalImage journalImage(String imageUrl) {
+		return journalImage(imageUrl, false);
+	}
+
+	private JournalImage journalImage(String imageUrl, boolean representative) {
 		return JournalImage.builder()
 				.imageUrl(imageUrl)
+				.representative(representative)
 				.build();
 	}
 

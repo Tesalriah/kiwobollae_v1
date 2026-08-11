@@ -7,7 +7,7 @@ import com.kiwobollae.api.plantProfile.dto.request.PlantProfileUpdateRequest;
 import com.kiwobollae.api.plantProfile.dto.response.PlantProfileResponse;
 import com.kiwobollae.api.journal.entity.JournalImage;
 import com.kiwobollae.api.plantProfile.entity.PlantProfile;
-import com.kiwobollae.api.journal.service.PlantImageUploadService;
+import com.kiwobollae.api.journal.service.JournalImageUploadService;
 import com.kiwobollae.api.species.entity.PlantSpecies;
 import com.kiwobollae.api.plantProfile.entity.enums.PlantStatus;
 import com.kiwobollae.api.journal.repository.JournalImageRepository;
@@ -25,6 +25,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -58,6 +60,43 @@ public class PlantProfileService {
 	public Page<PlantProfileResponse> getMyProfiles(Long userId, PlantStatus status, Pageable pageable) {
 		return plantProfileRepository.findAllByUserIdAndStatus(userId, status, pageable)
 				.map(PlantProfileResponse::from);
+	}
+
+	// 일지 작성 시 대표(★) 사진을 식물 대표사진으로 반영할 때도 재사용된다(저널 도메인 → 프로필 도메인
+	// 연동 지점). 이전 사진이 S3 업로드본이었다면 updateProfile()과 동일하게 정리한다.
+	@Transactional
+	public void updateThumbnail(Long userId, PlantProfile profile, String newThumbnailUrl) {
+		String previousThumbnailUrl = profile.getPlantImage();
+		if (newThumbnailUrl.equals(previousThumbnailUrl)) {
+			return;
+		}
+		profile.updateProfile(null, newThumbnailUrl, null);
+		// S3 삭제를 즉시 실행하면, 이 트랜잭션에 편승한 이후 작업(예: createJournal의 포인트 지급/가챠
+		// 예약)이 실패해 롤백될 때 DB의 plantImage는 이전 URL로 되돌아가는데 실제 S3 객체는 이미
+		// 사라져 대표사진이 깨진다. 커밋이 확정된 뒤에만 지우도록 미룬다.
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				deleteThumbnailIfUploaded(previousThumbnailUrl, userId);
+			}
+		});
+	}
+
+	// 대표사진을 제공하던 일지가 삭제될 때 재동기화한다(저널 도메인 → 프로필 도메인 연동 지점).
+	// 다른 사진으로 이미 교체된 뒤라면(더 이상 이 URL을 가리키지 않으면) 아무것도 하지 않는다 — 그
+	// 사이에 사용자가 프로필 대표사진을 직접 바꿨을 수도 있으므로, 무조건 지우면 그 변경을 덮어쓴다.
+	@Transactional
+	public void clearThumbnailIfMatches(Long userId, PlantProfile profile, String imageUrl) {
+		if (!imageUrl.equals(profile.getPlantImage())) {
+			return;
+		}
+		profile.clearPlantImage();
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				deleteThumbnailIfUploaded(imageUrl, userId);
+			}
+		});
 	}
 
 	public PlantProfileResponse getProfile(Long userId, Long profileId) {
