@@ -55,10 +55,26 @@ function BoardPageContent() {
   const [tab, setTab] = useState<'ALL' | BoardCategory>(() => parseTab(searchParams.get('category')));
   const [page, setPage] = useState(() => parsePage(searchParams.get('page')));
   const [posts, setPosts] = useState<BoardPostData[]>([]);
+  const [notices, setNotices] = useState<BoardPostData[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // 공지사항은 카테고리/페이지와 무관하게 항상 맨 위에 고정해서 보여준다.
+  useEffect(() => {
+    if (!hydrated) return;
+    const controller = new AbortController();
+
+    getBoardPosts('NOTICE', 0, 50, state.accessToken, controller.signal)
+      .then((result) => setNotices(result.content))
+      .catch((requestError) => {
+        if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
+        setNotices([]);
+      });
+
+    return () => controller.abort();
+  }, [hydrated, state.accessToken]);
 
   // 카테고리 탭/페이지를 URL 쿼리로 반영해 새로고침해도 그대로 유지되게 한다.
   useEffect(() => {
@@ -97,9 +113,11 @@ function BoardPageContent() {
     return () => controller.abort();
   }, [hydrated, tab, page, state.accessToken]);
 
-  const pinned = posts.filter((p) => p.category === 'NOTICE');
-  const normal = posts.filter((p) => p.category !== 'NOTICE');
-  const baseNumber = totalElements - page * PAGE_SIZE - pinned.length;
+  // NOTICE 탭 자체를 볼 때는 목록이 이미 전부 공지라 별도 고정 영역이 필요 없다.
+  const pinned = tab === 'NOTICE' ? [] : notices;
+  const normal = tab === 'NOTICE' ? posts : posts.filter((p) => p.category !== 'NOTICE');
+  const nonNoticeTotal = tab === 'NOTICE' ? totalElements : Math.max(0, totalElements - notices.length);
+  const baseNumber = nonNoticeTotal - page * PAGE_SIZE;
 
   const changeTab = (next: 'ALL' | BoardCategory) => {
     setTab(next);
@@ -150,7 +168,7 @@ function BoardPageContent() {
           <div className="px-5 py-[60px] text-center text-sub">게시글을 불러오고 있어요 🌱</div>
         ) : error ? (
           <div className="px-5 py-[60px] text-center text-sub">{error}</div>
-        ) : posts.length === 0 ? (
+        ) : posts.length === 0 && pinned.length === 0 ? (
           <div className="px-5 py-[60px] text-center text-sub">
             아직 게시글이 없어요. 첫 글을 남겨보세요 🌱
           </div>
@@ -178,6 +196,10 @@ function BoardPageContent() {
                 <div className="text-center text-sm font-bold text-[#b5502f]">{post.likeCount}</div>
               </Link>
             ))}
+
+            {normal.length === 0 && (
+              <div className="px-5 py-[40px] text-center text-sub">아직 게시글이 없어요.</div>
+            )}
 
             {normal.map((post, index) => (
               <Link
