@@ -31,14 +31,19 @@ const NAV = [
   { key: 'board', label: '커뮤니티', href: '/board' },
 ];
 
-// 모바일 하단 탭은 식물/일지를 "식물" 하나로 합치고 쿠폰과 가챠를 각각 바로 접근하게 한다.
+// 모바일 하단 탭은 자리가 6개뿐이라 식물/일지는 "식물" 하나로 합치고, 상대적으로 덜 쓰는
+// 쿠폰·가챠는 "더보기" 시트 안으로 몰아서 커뮤니티가 들어갈 자리를 확보한다.
 const BOTTOM = [
   { key: 'home', label: '홈', icon: 'home', href: '/' },
   { key: 'plants', label: '식물', icon: 'potted_plant', href: '/plants' },
-  { key: 'cards', label: '쿠폰', icon: 'style', href: '/cards' },
-  { key: 'gacha', label: '가챠', icon: 'casino', href: '/gacha' },
+  { key: 'board', label: '커뮤니티', icon: 'forum', href: '/board' },
   { key: 'shop', label: '상점', icon: 'storefront', href: '/shop' },
   { key: 'account', label: 'MY', icon: 'person', href: '/my' },
+];
+
+const BOTTOM_MORE = [
+  { key: 'cards', label: '쿠폰', icon: 'style', href: '/cards' },
+  { key: 'gacha', label: '가챠', icon: 'casino', href: '/gacha' },
 ];
 
 function activeKey(pathname: string) {
@@ -67,6 +72,7 @@ export default function Navbar() {
   const bellRef = useRef<HTMLDivElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     if (!bellOpen && !profileOpen) return;
@@ -276,6 +282,7 @@ export default function Navbar() {
               <Link
                 key={b.key}
                 href={href}
+                onClick={() => setMoreOpen(false)}
                 className={`flex flex-1 flex-col items-center justify-center gap-[3px] ${
                   mobileActive === b.key ? 'text-brand hover:text-brand' : 'text-[#9aa691] hover:text-[#9aa691]'
                 }`}
@@ -309,8 +316,54 @@ export default function Navbar() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-[3px] ${
+              moreOpen || active === 'cards' || active === 'gacha'
+                ? 'text-brand hover:text-brand'
+                : 'text-[#9aa691] hover:text-[#9aa691]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-2xl">more_horiz</span>
+            <span className="text-[11px] font-bold">더보기</span>
+          </button>
         </div>
       </div>
+
+      {moreOpen && (
+        <div
+          onClick={() => setMoreOpen(false)}
+          className="fixed inset-0 z-[46] bg-[rgba(46,54,42,.4)] md:hidden"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="fixed bottom-[66px] left-0 right-0 rounded-t-[20px] bg-white p-5 shadow-[0_-14px_40px_-12px_rgba(85,139,47,.35)]"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <b className="text-[15px] font-bold">더보기</b>
+              <button type="button" onClick={() => setMoreOpen(false)} className="cursor-pointer text-sub">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              {BOTTOM_MORE.map((b) => (
+                <Link
+                  key={b.key}
+                  href={b.href}
+                  onClick={() => setMoreOpen(false)}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-[#F8FAF3] py-4 ${
+                    active === b.key ? 'text-brand' : 'text-[#5b6a54]'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-2xl">{b.icon}</span>
+                  <span className="text-[12px] font-bold">{b.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
