@@ -72,4 +72,18 @@ public class FilterConfig {
 		registration.setOrder(1);
 		return registration;
 	}
+
+	@Bean
+	public FilterRegistrationBean<RateLimitFilter> boardLikeRateLimitFilter(ObjectMapper objectMapper) {
+		// 좋아요/좋아요 취소를 스팸 클릭(또는 UI를 우회한 스크립트 반복 호출)해도 DB에 부담을
+		// 주지 않도록 게시글/댓글 좋아요 엔드포인트에 분당 10회 제한을 건다. urlPatterns가
+		// "/board/posts/*/likes" 같은 중간 와일드카드를 지원하지 않아 넓은 prefix로 등록하고,
+		// 실제 필터링 대상은 requestMatcher로 "/likes"로 끝나는 요청만 걸러낸다.
+		FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>(
+				new RateLimitFilter(objectMapper, 10, request -> request.getRequestURI().endsWith("/likes")));
+		registration.addUrlPatterns(ApiVersion.V1 + "/board/*");
+		registration.setName("boardLikeRateLimitFilter");
+		registration.setOrder(1);
+		return registration;
+	}
 }

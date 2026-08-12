@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
@@ -29,16 +30,30 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
 	private final ObjectMapper objectMapper;
 	private final int maxRequestsPerWindow;
+	private final Predicate<HttpServletRequest> requestMatcher;
 	private final ConcurrentHashMap<String, Window> windowsByClient = new ConcurrentHashMap<>();
 
 	public RateLimitFilter(ObjectMapper objectMapper, int maxRequestsPerWindow) {
+		this(objectMapper, maxRequestsPerWindow, request -> true);
+	}
+
+	// urlPatterns의 servlet 매핑은 "/board/posts/*/likes"처럼 경로 중간에 오는 와일드카드를
+	// 지원하지 않는다. 이런 엔드포인트는 넓은 prefix 패턴으로 등록하고, 실제로 제한을 적용할
+	// 요청인지는 이 predicate로 걸러낸다(그 외 요청은 그대로 통과).
+	public RateLimitFilter(ObjectMapper objectMapper, int maxRequestsPerWindow, Predicate<HttpServletRequest> requestMatcher) {
 		this.objectMapper = objectMapper;
 		this.maxRequestsPerWindow = maxRequestsPerWindow;
+		this.requestMatcher = requestMatcher;
 	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
+		if (!requestMatcher.test(request)) {
+			filterChain.doFilter(request, response);
+			return;
+		}
+
 		String clientKey = resolveClientKey(request) + "|" + request.getRequestURI();
 		Window window = windowsByClient.computeIfAbsent(clientKey, key -> new Window());
 
