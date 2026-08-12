@@ -21,6 +21,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -116,7 +117,13 @@ public class BoardPostService {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
 		User user = userRepository.getReferenceById(userId);
-		boardPostLikeRepository.save(BoardPostLike.create(post, user, LocalDateTime.now(KST)));
+		try {
+			// existsBy 사전 체크와 저장 사이에는 동시성 경쟁이 있을 수 있다(더블 클릭, 중복 요청 등).
+			// 유니크 제약 위반이 원시 DB 에러로 새는 대신 "이미 좋아요를 눌렀다"는 안내로 보이게 한다.
+			boardPostLikeRepository.saveAndFlush(BoardPostLike.create(post, user, LocalDateTime.now(KST)));
+		} catch (DataIntegrityViolationException e) {
+			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
+		}
 		post.incrementLikeCount();
 	}
 
