@@ -18,9 +18,14 @@ public record BoardPostResponse(
 		Integer commentCount,
 		BoardStatus status,
 		LocalDateTime createdAt,
-		LocalDateTime updatedAt
+		LocalDateTime updatedAt,
+		Boolean likedByMe
 ) {
 	public static BoardPostResponse from(BoardPost post) {
+		return from(post, false);
+	}
+
+	public static BoardPostResponse from(BoardPost post, boolean likedByMe) {
 		return new BoardPostResponse(
 				post.getId(),
 				post.getUser().getId(),
@@ -34,7 +39,8 @@ public record BoardPostResponse(
 				post.getCommentCount(),
 				post.getStatus(),
 				post.getCreatedAt(),
-				post.getUpdatedAt()
+				post.getUpdatedAt(),
+				likedByMe
 		);
 	}
 }

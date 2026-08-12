@@ -53,17 +53,21 @@ public class BoardController {
 	@Operation(summary = "게시글 목록 조회", description = "카테고리 필터, 페이지네이션, 정렬(최신 기본)을 지원합니다.")
 	@GetMapping
 	public ResponseEntity<ApiResponse<Page<BoardPostResponse>>> getPosts(
+			@AuthenticationPrincipal Long userId,
 			@RequestParam(required = false) BoardCategory category,
 			@ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
 			Pageable pageable
 	) {
-		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPosts(category, pageable)));
+		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPosts(category, pageable, userId)));
 	}
 
 	@Operation(summary = "게시글 상세 조회", description = "게시글 본문과 작성자 정보를 반환합니다.")
 	@GetMapping("/{id}")
-	public ResponseEntity<ApiResponse<BoardPostResponse>> getPost(@PathVariable Long id) {
-		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPost(id)));
+	public ResponseEntity<ApiResponse<BoardPostResponse>> getPost(
+			@AuthenticationPrincipal Long userId,
+			@PathVariable Long id
+	) {
+		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPost(id, userId)));
 	}
 
 	@Operation(summary = "게시글 수정", description = "작성자 본인만 제목/본문을 수정할 수 있습니다. 카테고리는 변경할 수 없습니다.")

@@ -41,7 +41,10 @@ public class BoardCommentController {
 
 	@Operation(summary = "댓글 목록 조회", description = "게시글의 댓글을 작성 시간순으로 반환합니다.")
 	@GetMapping
-	public ResponseEntity<ApiResponse<List<BoardCommentResponse>>> getComments(@PathVariable Long postId) {
-		return ResponseEntity.ok(ApiResponse.success(boardCommentService.getComments(postId)));
+	public ResponseEntity<ApiResponse<List<BoardCommentResponse>>> getComments(
+			@AuthenticationPrincipal Long userId,
+			@PathVariable Long postId
+	) {
+		return ResponseEntity.ok(ApiResponse.success(boardCommentService.getComments(postId, userId)));
 	}
 }

@@ -179,10 +179,26 @@ class BoardCommentServiceTest {
 		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
 				.willReturn(List.of(comment));
 
-		List<BoardCommentResponse> responses = boardCommentService.getComments(10L);
+		List<BoardCommentResponse> responses = boardCommentService.getComments(10L, null);
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).id()).isEqualTo(100L);
+		assertThat(responses.get(0).likedByMe()).isFalse();
+	}
+
+	@Test
+	void getCommentsMarksLikedByMeForCurrentUser() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
+				.willReturn(List.of(comment));
+		given(boardCommentLikeRepository.findLikedCommentIds(2L, List.of(100L))).willReturn(List.of(100L));
+
+		List<BoardCommentResponse> responses = boardCommentService.getComments(10L, 2L);
+
+		assertThat(responses.get(0).likedByMe()).isTrue();
 	}
 
 	@Test

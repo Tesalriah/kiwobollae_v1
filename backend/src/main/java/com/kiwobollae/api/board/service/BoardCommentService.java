@@ -17,6 +17,7 @@ import com.kiwobollae.api.global.exception.ErrorCode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -54,10 +55,16 @@ public class BoardCommentService {
 				.orElse(false);
 	}
 
-	public List<BoardCommentResponse> getComments(Long postId) {
+	public List<BoardCommentResponse> getComments(Long postId, Long userId) {
 		findActivePost(postId);
-		return boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE).stream()
-				.map(BoardCommentResponse::from)
+		List<BoardComment> comments = boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE);
+		if (userId == null || comments.isEmpty()) {
+			return comments.stream().map(BoardCommentResponse::from).toList();
+		}
+		List<Long> commentIds = comments.stream().map(BoardComment::getId).toList();
+		Set<Long> likedCommentIds = Set.copyOf(boardCommentLikeRepository.findLikedCommentIds(userId, commentIds));
+		return comments.stream()
+				.map(comment -> BoardCommentResponse.from(comment, likedCommentIds.contains(comment.getId())))
 				.toList();
 	}
 

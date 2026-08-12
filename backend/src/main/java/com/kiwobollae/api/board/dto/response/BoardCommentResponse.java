@@ -12,9 +12,14 @@ public record BoardCommentResponse(
 		Long parentCommentId,
 		Integer likeCount,
 		LocalDateTime createdAt,
-		LocalDateTime updatedAt
+		LocalDateTime updatedAt,
+		Boolean likedByMe
 ) {
 	public static BoardCommentResponse from(BoardComment comment) {
+		return from(comment, false);
+	}
+
+	public static BoardCommentResponse from(BoardComment comment, boolean likedByMe) {
 		return new BoardCommentResponse(
 				comment.getId(),
 				comment.getPost().getId(),
@@ -24,7 +29,8 @@ public record BoardCommentResponse(
 				comment.getParentComment() != null ? comment.getParentComment().getId() : null,
 				comment.getLikeCount(),
 				comment.getCreatedAt(),
-				comment.getUpdatedAt()
+				comment.getUpdatedAt(),
+				likedByMe
 		);
 	}
 }

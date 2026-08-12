@@ -18,6 +18,8 @@ import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -61,12 +63,20 @@ public class BoardPostService {
 		return BoardPostResponse.from(post);
 	}
 
-	public Page<BoardPostResponse> getPosts(BoardCategory category, Pageable pageable) {
-		return boardPostRepository.search(BoardStatus.ACTIVE, category, pageable).map(BoardPostResponse::from);
+	public Page<BoardPostResponse> getPosts(BoardCategory category, Pageable pageable, Long userId) {
+		Page<BoardPost> posts = boardPostRepository.search(BoardStatus.ACTIVE, category, pageable);
+		if (userId == null || posts.isEmpty()) {
+			return posts.map(BoardPostResponse::from);
+		}
+		List<Long> postIds = posts.map(BoardPost::getId).toList();
+		Set<Long> likedPostIds = Set.copyOf(boardPostLikeRepository.findLikedPostIds(userId, postIds));
+		return posts.map(post -> BoardPostResponse.from(post, likedPostIds.contains(post.getId())));
 	}
 
-	public BoardPostResponse getPost(Long id) {
-		return BoardPostResponse.from(findActivePost(id));
+	public BoardPostResponse getPost(Long id, Long userId) {
+		BoardPost post = findActivePost(id);
+		boolean likedByMe = userId != null && boardPostLikeRepository.existsByPostIdAndUserId(id, userId);
+		return BoardPostResponse.from(post, likedByMe);
 	}
 
 	public Page<BoardPostResponse> getMyPosts(Long userId, Pageable pageable) {

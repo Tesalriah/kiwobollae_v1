@@ -159,10 +159,23 @@ class BoardPostServiceTest {
 		Page<BoardPost> page = new PageImpl<>(List.of(mockPost(10L, user, BoardStatus.ACTIVE)));
 		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, pageable)).willReturn(page);
 
-		Page<BoardPostResponse> result = boardPostService.getPosts(BoardCategory.FREE, pageable);
+		Page<BoardPostResponse> result = boardPostService.getPosts(BoardCategory.FREE, pageable, null);
 
 		assertThat(result.getContent()).hasSize(1);
 		assertThat(result.getContent().get(0).id()).isEqualTo(10L);
+	}
+
+	@Test
+	void getPostsMarksLikedByMeForCurrentUser() {
+		Pageable pageable = PageRequest.of(0, 10);
+		User user = mockUser(1L, UserRole.USER);
+		Page<BoardPost> page = new PageImpl<>(List.of(mockPost(10L, user, BoardStatus.ACTIVE)));
+		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, pageable)).willReturn(page);
+		given(boardPostLikeRepository.findLikedPostIds(2L, List.of(10L))).willReturn(List.of(10L));
+
+		Page<BoardPostResponse> result = boardPostService.getPosts(BoardCategory.FREE, pageable, 2L);
+
+		assertThat(result.getContent().get(0).likedByMe()).isTrue();
 	}
 
 	@Test
@@ -171,9 +184,22 @@ class BoardPostServiceTest {
 		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
 		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 
-		BoardPostResponse response = boardPostService.getPost(10L);
+		BoardPostResponse response = boardPostService.getPost(10L, null);
 
 		assertThat(response.id()).isEqualTo(10L);
+		assertThat(response.likedByMe()).isFalse();
+	}
+
+	@Test
+	void getPostReflectsLikedByMeForCurrentUser() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+		given(boardPostLikeRepository.existsByPostIdAndUserId(10L, 2L)).willReturn(true);
+
+		BoardPostResponse response = boardPostService.getPost(10L, 2L);
+
+		assertThat(response.likedByMe()).isTrue();
 	}
 
 	@Test
@@ -182,7 +208,7 @@ class BoardPostServiceTest {
 		BoardPost post = mockPost(10L, user, BoardStatus.HIDDEN);
 		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 
-		assertThatThrownBy(() -> boardPostService.getPost(10L))
+		assertThatThrownBy(() -> boardPostService.getPost(10L, null))
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
@@ -192,7 +218,7 @@ class BoardPostServiceTest {
 	void getPostFailsWhenNotFound() {
 		given(boardPostRepository.findByIdWithUser(404L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> boardPostService.getPost(404L))
+		assertThatThrownBy(() -> boardPostService.getPost(404L, null))
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
