@@ -116,7 +116,9 @@ function BoardPageContent() {
   // NOTICE 탭 자체를 볼 때는 목록이 이미 전부 공지라 별도 고정 영역이 필요 없다.
   const pinned = tab === 'NOTICE' ? [] : notices;
   const normal = tab === 'NOTICE' ? posts : posts.filter((p) => p.category !== 'NOTICE');
-  const nonNoticeTotal = tab === 'NOTICE' ? totalElements : Math.max(0, totalElements - notices.length);
+  // ALL 탭만 공지가 실제로 목록에 섞여서 totalElements에 포함되니 그만큼 빼준다.
+  // FREE/PLANT_QNA/NOTICE는 이미 카테고리로 필터링된 개수라 그대로 쓴다.
+  const nonNoticeTotal = tab === 'ALL' ? Math.max(0, totalElements - notices.length) : totalElements;
   const baseNumber = nonNoticeTotal - page * PAGE_SIZE;
 
   const changeTab = (next: 'ALL' | BoardCategory) => {
@@ -155,7 +157,7 @@ function BoardPageContent() {
       </div>
 
       <div className="overflow-hidden rounded-[18px] bg-white shadow-card">
-        <div className="grid grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 border-b-2 border-ink/80 px-4 py-3 text-xs font-extrabold text-faint sm:px-5">
+        <div className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 border-b-2 border-ink/80 px-4 py-3 text-xs font-extrabold text-faint sm:px-5">
           <div className="text-center">번호</div>
           <div>제목</div>
           <div className="hidden text-center sm:block">글쓴이</div>
@@ -178,7 +180,7 @@ function BoardPageContent() {
               <Link
                 key={post.id}
                 href={`/board/${post.id}`}
-                className="grid grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 bg-brand-soft/40 px-4 py-3 text-ink hover:bg-brand-soft/70 hover:text-ink sm:px-5"
+                className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 bg-brand-soft/40 px-4 py-3 text-ink hover:bg-brand-soft/70 hover:text-ink sm:px-5"
               >
                 <div className="text-center text-[15px]">📌</div>
                 <div className="min-w-0">
@@ -205,7 +207,7 @@ function BoardPageContent() {
               <Link
                 key={post.id}
                 href={`/board/${post.id}`}
-                className="grid grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 px-4 py-3 text-ink hover:bg-[#F8FAF3] hover:text-ink sm:px-5"
+                className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 px-4 py-3 text-ink hover:bg-[#F8FAF3] hover:text-ink sm:px-5"
               >
                 <div className="text-center text-sm text-faint">{baseNumber - index}</div>
                 <div className="min-w-0">
