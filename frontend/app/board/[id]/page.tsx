@@ -55,6 +55,8 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [likedComments, setLikedComments] = useState<Record<number, boolean>>({});
+  const [likePending, setLikePending] = useState(false);
+  const [commentLikePendingIds, setCommentLikePendingIds] = useState<Set<number>>(new Set());
 
   const [commentDraft, setCommentDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
@@ -104,7 +106,9 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
 
   const toggleLike = async () => {
     if (!state.accessToken) return showToast('로그인이 필요해요.', 'err');
+    if (likePending) return;
     const wasLiked = liked;
+    setLikePending(true);
     setLiked(!wasLiked);
     setLikeCount((prev) => (wasLiked ? prev - 1 : prev + 1));
     try {
@@ -114,18 +118,28 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
         await likeBoardPost(postId, state.accessToken);
       }
     } catch (requestError) {
-      setLiked(wasLiked);
-      setLikeCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+      // 서버가 "이미 좋아요를 눌렀다"고 답하면 화면 상태를 되돌리지 않고 좋아요 상태 그대로 맞춘다.
+      const alreadyLiked = requestError instanceof ApiError && requestError.message.includes('이미 좋아요');
+      if (!alreadyLiked) {
+        setLiked(wasLiked);
+        setLikeCount((prev) => (wasLiked ? prev + 1 : prev - 1));
+      } else {
+        setLiked(true);
+      }
       showToast(
         requestError instanceof ApiError ? requestError.message : '좋아요 처리에 실패했어요.',
         'err',
       );
+    } finally {
+      setLikePending(false);
     }
   };
 
   const toggleCommentLike = async (comment: BoardCommentData) => {
     if (!state.accessToken) return showToast('로그인이 필요해요.', 'err');
+    if (commentLikePendingIds.has(comment.id)) return;
     const wasLiked = !!likedComments[comment.id];
+    setCommentLikePendingIds((prev) => new Set(prev).add(comment.id));
     setLikedComments((prev) => ({ ...prev, [comment.id]: !wasLiked }));
     setComments((prev) =>
       prev.map((c) => (c.id === comment.id ? { ...c, likeCount: c.likeCount + (wasLiked ? -1 : 1) } : c)),
@@ -137,14 +151,25 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
         await likeBoardComment(comment.id, state.accessToken);
       }
     } catch (requestError) {
-      setLikedComments((prev) => ({ ...prev, [comment.id]: wasLiked }));
-      setComments((prev) =>
-        prev.map((c) => (c.id === comment.id ? { ...c, likeCount: c.likeCount + (wasLiked ? 1 : -1) } : c)),
-      );
+      const alreadyLiked = requestError instanceof ApiError && requestError.message.includes('이미 좋아요');
+      if (!alreadyLiked) {
+        setLikedComments((prev) => ({ ...prev, [comment.id]: wasLiked }));
+        setComments((prev) =>
+          prev.map((c) => (c.id === comment.id ? { ...c, likeCount: c.likeCount + (wasLiked ? 1 : -1) } : c)),
+        );
+      } else {
+        setLikedComments((prev) => ({ ...prev, [comment.id]: true }));
+      }
       showToast(
         requestError instanceof ApiError ? requestError.message : '좋아요 처리에 실패했어요.',
         'err',
       );
+    } finally {
+      setCommentLikePendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(comment.id);
+        return next;
+      });
     }
   };
 
@@ -346,7 +371,8 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
           <button
             type="button"
             onClick={() => toggleCommentLike(comment)}
-            className={`flex shrink-0 cursor-pointer items-center gap-1 text-xs font-bold ${
+            disabled={commentLikePendingIds.has(comment.id)}
+            className={`flex shrink-0 cursor-pointer items-center gap-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60 ${
               likedComments[comment.id] ? 'text-[#b5502f]' : 'text-faint'
             }`}
           >
@@ -454,7 +480,8 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
           <button
             type="button"
             onClick={toggleLike}
-            className={`flex cursor-pointer items-center gap-1.5 rounded-[11px] border-[1.5px] px-[18px] py-[11px] font-bold ${
+            disabled={likePending}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-[11px] border-[1.5px] px-[18px] py-[11px] font-bold disabled:cursor-not-allowed disabled:opacity-60 ${
               liked ? 'border-[#e8bdad] bg-[#FBF3EF] text-[#b5502f]' : 'border-line bg-white text-sub'
             }`}
           >
