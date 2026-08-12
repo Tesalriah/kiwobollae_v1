@@ -17,6 +17,7 @@ export interface BoardPostData {
   status: BoardStatus;
   createdAt: string;
   updatedAt: string;
+  likedByMe: boolean;
 }
 
 export interface BoardCommentData {
@@ -29,6 +30,7 @@ export interface BoardCommentData {
   likeCount: number;
   createdAt: string;
   updatedAt: string;
+  likedByMe: boolean;
 }
 
 export interface BoardPostCreatePayload {
@@ -108,9 +110,10 @@ export function unlikeBoardPost(id: number, accessToken: string): Promise<void> 
 
 export function getBoardComments(
   postId: number,
+  accessToken?: string | null,
   signal?: AbortSignal,
 ): Promise<BoardCommentData[]> {
-  return request<BoardCommentData[]>(`/api/v1/board/posts/${postId}/comments`, { signal });
+  return request<BoardCommentData[]>(`/api/v1/board/posts/${postId}/comments`, { accessToken, signal });
 }
 
 export function createBoardComment(

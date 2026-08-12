@@ -70,12 +70,16 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
 
     Promise.all([
       getBoardPost(postId, state.accessToken, controller.signal),
-      getBoardComments(postId, controller.signal),
+      getBoardComments(postId, state.accessToken, controller.signal),
     ])
       .then(([postData, commentList]) => {
         setPost(postData);
         setLikeCount(postData.likeCount);
+        setLiked(postData.likedByMe);
         setComments(commentList);
+        setLikedComments(
+          Object.fromEntries(commentList.map((comment) => [comment.id, comment.likedByMe])),
+        );
         if (postData.journalId && state.accessToken) {
           getJournal(postData.journalId, state.accessToken, controller.signal)
             .then((j) => setJournal(j))
