@@ -443,7 +443,7 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
 
         {post.journalId && (
           <Link
-            href={`/journals/${post.journalId}`}
+            href={`/journals/${post.journalId}?viaBoardPost=${post.id}`}
             className="mb-5 flex gap-4 rounded-[16px] bg-[#F8FAF3] p-4 text-ink hover:text-ink"
           >
             <div className="flex h-[104px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-[13px] bg-brand-soft text-[46px]">
