@@ -19,6 +19,12 @@ const CATEGORY_TEXT: Record<BoardCategory, string> = {
   PLANT_QNA: 'text-brand-dark',
 };
 
+const CATEGORY_BG: Record<BoardCategory, string> = {
+  NOTICE: 'bg-[#FBF3E1]',
+  FREE: 'bg-[#E8F1F8]',
+  PLANT_QNA: 'bg-brand-soft',
+};
+
 const TABS: { key: 'ALL' | BoardCategory; label: string }[] = [
   { key: 'ALL', label: '전체' },
   { key: 'NOTICE', label: '공지사항' },
@@ -126,6 +132,58 @@ function BoardPageContent() {
     setPage(0);
   };
 
+  // 모바일은 표 대신 카드형(제목 위, 작성자·시간·통계 아래)으로 보여줘서 제목이 잘리지 않게
+  // 하고, sm 이상에서는 기존 표 레이아웃을 그대로 쓴다.
+  const renderRow = (post: BoardPostData, pinned: boolean, number: number | null) => (
+    <Link
+      key={post.id}
+      href={`/board/${post.id}`}
+      className={`block px-4 py-3.5 text-ink hover:text-ink sm:px-5 ${
+        pinned ? 'bg-brand-soft/40 hover:bg-brand-soft/70' : 'hover:bg-[#F8FAF3]'
+      }`}
+    >
+      <div className="flex flex-col gap-1.5 sm:hidden">
+        <div className="flex items-start gap-1.5">
+          {pinned && <span className="mt-0.5 shrink-0 text-sm">📌</span>}
+          <span className={`shrink-0 rounded px-1.5 py-[3px] text-[11px] font-extrabold ${CATEGORY_BG[post.category]} ${CATEGORY_TEXT[post.category]}`}>
+            {CATEGORY_LABEL[post.category]}
+          </span>
+          <span className="min-w-0 flex-1 break-words font-bold leading-snug">
+            {post.title}
+            {post.commentCount > 0 && (
+              <span className="ml-1.5 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
+            )}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-faint">
+          <span className="font-bold text-sub">{post.nickname}</span>
+          <span>·</span>
+          <span>{formatDate(post.createdAt)}</span>
+          <span className="ml-auto whitespace-nowrap">
+            조회 {post.viewCount} · 추천 {post.likeCount}
+          </span>
+        </div>
+      </div>
+
+      <div className="hidden items-center gap-2 sm:grid sm:grid-cols-[60px_1fr_90px_84px_56px_56px]">
+        <div className="text-center text-sm text-faint">{pinned ? '📌' : number}</div>
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className={`shrink-0 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
+            [{CATEGORY_LABEL[post.category]}]
+          </span>
+          <span className={`min-w-0 truncate ${pinned ? 'font-extrabold' : 'font-bold'}`}>{post.title}</span>
+          {post.commentCount > 0 && (
+            <span className="shrink-0 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
+          )}
+        </div>
+        <div className="truncate text-center text-sm text-sub">{post.nickname}</div>
+        <div className="text-center text-xs text-faint">{formatDate(post.createdAt)}</div>
+        <div className="text-center text-sm text-faint">{post.viewCount}</div>
+        <div className="text-center text-sm font-bold text-[#b5502f]">{post.likeCount}</div>
+      </div>
+    </Link>
+  );
+
   return (
     <div className="container">
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-3">
@@ -157,11 +215,11 @@ function BoardPageContent() {
       </div>
 
       <div className="overflow-hidden rounded-[18px] bg-white shadow-card">
-        <div className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 border-b-2 border-ink/80 px-4 py-3 text-xs font-extrabold text-faint sm:px-5">
+        <div className="hidden items-center gap-2 border-b-2 border-ink/80 px-4 py-3 text-xs font-extrabold text-faint sm:grid sm:grid-cols-[60px_1fr_90px_84px_56px_56px] sm:px-5">
           <div className="text-center">번호</div>
           <div>제목</div>
-          <div className="hidden text-center sm:block">글쓴이</div>
-          <div className="hidden text-center sm:block">작성일</div>
+          <div className="text-center">글쓴이</div>
+          <div className="text-center">작성일</div>
           <div className="text-center">조회</div>
           <div className="text-center">추천</div>
         </div>
@@ -176,55 +234,13 @@ function BoardPageContent() {
           </div>
         ) : (
           <div className="divide-y divide-[#f0f1ea]">
-            {pinned.map((post) => (
-              <Link
-                key={post.id}
-                href={`/board/${post.id}`}
-                className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 bg-brand-soft/40 px-4 py-3 text-ink hover:bg-brand-soft/70 hover:text-ink sm:px-5"
-              >
-                <div className="text-center text-[15px]">📌</div>
-                <div className="flex min-w-0 items-baseline gap-1.5">
-                  <span className={`shrink-0 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
-                    [{CATEGORY_LABEL[post.category]}]
-                  </span>
-                  <span className="min-w-0 truncate font-extrabold">{post.title}</span>
-                  {post.commentCount > 0 && (
-                    <span className="shrink-0 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
-                  )}
-                </div>
-                <div className="hidden truncate text-center text-sm text-sub sm:block">{post.nickname}</div>
-                <div className="hidden text-center text-xs text-faint sm:block">{formatDate(post.createdAt)}</div>
-                <div className="text-center text-sm text-faint">{post.viewCount}</div>
-                <div className="text-center text-sm font-bold text-[#b5502f]">{post.likeCount}</div>
-              </Link>
-            ))}
+            {pinned.map((post) => renderRow(post, true, null))}
 
             {normal.length === 0 && (
               <div className="px-5 py-[40px] text-center text-sub">아직 게시글이 없어요.</div>
             )}
 
-            {normal.map((post, index) => (
-              <Link
-                key={post.id}
-                href={`/board/${post.id}`}
-                className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 px-4 py-3 text-ink hover:bg-[#F8FAF3] hover:text-ink sm:px-5"
-              >
-                <div className="text-center text-sm text-faint">{baseNumber - index}</div>
-                <div className="flex min-w-0 items-baseline gap-1.5">
-                  <span className={`shrink-0 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
-                    [{CATEGORY_LABEL[post.category]}]
-                  </span>
-                  <span className="min-w-0 truncate font-bold">{post.title}</span>
-                  {post.commentCount > 0 && (
-                    <span className="shrink-0 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
-                  )}
-                </div>
-                <div className="hidden truncate text-center text-sm text-sub sm:block">{post.nickname}</div>
-                <div className="hidden text-center text-xs text-faint sm:block">{formatDate(post.createdAt)}</div>
-                <div className="text-center text-sm text-faint">{post.viewCount}</div>
-                <div className="text-center text-sm font-bold text-[#b5502f]">{post.likeCount}</div>
-              </Link>
-            ))}
+            {normal.map((post, index) => renderRow(post, false, baseNumber - index))}
           </div>
         )}
       </div>
