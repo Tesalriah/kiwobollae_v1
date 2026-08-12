@@ -191,6 +191,7 @@ class BoardPostServiceTest {
 
 		assertThat(response.id()).isEqualTo(10L);
 		assertThat(response.likedByMe()).isFalse();
+		verify(post).incrementViewCount();
 	}
 
 	@Test
@@ -215,6 +216,7 @@ class BoardPostServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+		verify(post, never()).incrementViewCount();
 	}
 
 	@Test

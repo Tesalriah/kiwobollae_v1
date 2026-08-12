@@ -77,8 +77,10 @@ public class BoardPostService {
 		return posts.map(post -> BoardPostResponse.from(post, likedPostIds.contains(post.getId())));
 	}
 
+	@Transactional
 	public BoardPostResponse getPost(Long id, Long userId) {
 		BoardPost post = findActivePost(id);
+		post.incrementViewCount();
 		boolean likedByMe = userId != null && boardPostLikeRepository.existsByPostIdAndUserId(id, userId);
 		return BoardPostResponse.from(post, likedByMe);
 	}
