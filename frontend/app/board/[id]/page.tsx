@@ -488,13 +488,21 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
             <span className="material-symbols-outlined text-[17px]">favorite</span> 좋아요 {likeCount}
           </button>
           {isPostMine ? (
-            <button
-              type="button"
-              onClick={removePost}
-              className="cursor-pointer rounded-[11px] border-[1.5px] border-[#e8bdad] bg-white px-4 py-[11px] font-bold text-[#b5502f]"
-            >
-              <span className="material-symbols-outlined text-[17px]">delete</span> 삭제
-            </button>
+            <>
+              <Link
+                href={`/board/${post.id}/edit`}
+                className="flex cursor-pointer items-center gap-1.5 rounded-[11px] border-[1.5px] border-line bg-white px-4 py-[11px] font-bold text-sub hover:text-sub"
+              >
+                <span className="material-symbols-outlined text-[17px]">edit</span> 수정
+              </Link>
+              <button
+                type="button"
+                onClick={removePost}
+                className="cursor-pointer rounded-[11px] border-[1.5px] border-[#e8bdad] bg-white px-4 py-[11px] font-bold text-[#b5502f]"
+              >
+                <span className="material-symbols-outlined text-[17px]">delete</span> 삭제
+              </button>
+            </>
           ) : (
             <button
               type="button"
