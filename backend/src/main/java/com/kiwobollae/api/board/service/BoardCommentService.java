@@ -14,6 +14,8 @@ import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.service.NotificationService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -31,11 +33,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class BoardCommentService {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final String REF_TYPE_POST = "BOARD_POST";
+	private static final String REF_TYPE_COMMENT = "BOARD_COMMENT";
+	private static final int NOTIFICATION_PREVIEW_LENGTH = 40;
 
 	private final BoardCommentRepository boardCommentRepository;
 	private final BoardCommentLikeRepository boardCommentLikeRepository;
 	private final BoardPostRepository boardPostRepository;
 	private final UserRepository userRepository;
+	private final NotificationService notificationService;
 
 	@Transactional
 	public BoardCommentResponse createComment(Long userId, Long postId, BoardCommentCreateRequest request) {
@@ -46,7 +52,39 @@ public class BoardCommentService {
 		User user = userRepository.getReferenceById(userId);
 		BoardComment comment = boardCommentRepository.save(BoardComment.create(post, user, request.content(), parent));
 		post.incrementCommentCount();
+		notifyOnComment(userId, post, parent, comment);
 		return BoardCommentResponse.from(comment);
+	}
+
+	// 답글이면 답글이 달린 부모 댓글 작성자에게, 최상위 댓글이면 게시글 작성자에게 알린다.
+	// 자기 글/자기 댓글에 스스로 남긴 경우는 알림을 보내지 않는다.
+	private void notifyOnComment(Long commenterId, BoardPost post, BoardComment parent, BoardComment comment) {
+		String preview = preview(comment.getContent());
+		String linkUrl = "/board/" + post.getId();
+		if (parent != null) {
+			Long parentAuthorId = parent.getUser().getId();
+			if (!parentAuthorId.equals(commenterId)) {
+				notificationService.notify(
+						parentAuthorId, NotificationType.COMMUNITY,
+						"내 댓글에 답글이 달렸어요 💬", preview, linkUrl,
+						REF_TYPE_COMMENT, comment.getId());
+			}
+			return;
+		}
+		Long postAuthorId = post.getUser().getId();
+		if (!postAuthorId.equals(commenterId)) {
+			notificationService.notify(
+					postAuthorId, NotificationType.COMMUNITY,
+					"내 게시글에 댓글이 달렸어요 💬", preview, linkUrl,
+					REF_TYPE_POST, post.getId());
+		}
+	}
+
+	private String preview(String content) {
+		if (content.length() <= NOTIFICATION_PREVIEW_LENGTH) {
+			return "\"" + content + "\"";
+		}
+		return "\"" + content.substring(0, NOTIFICATION_PREVIEW_LENGTH) + "...\"";
 	}
 
 	// 다른 도메인(report)이 댓글 존재 여부만 확인할 때 쓰는 조회 전용 진입점.

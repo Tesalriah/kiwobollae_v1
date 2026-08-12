@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.kiwobollae.api.auth.entity.User;
@@ -23,6 +24,8 @@ import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
+import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.service.NotificationService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -42,7 +45,12 @@ class BoardCommentServiceTest {
 	@Mock private BoardCommentLikeRepository boardCommentLikeRepository;
 	@Mock private BoardPostRepository boardPostRepository;
 	@Mock private UserRepository userRepository;
+	@Mock private NotificationService notificationService;
 	@InjectMocks private BoardCommentService boardCommentService;
+
+	// 댓글 작성자와는 다른 id를 써서, notifyOnComment의 "본인 글/댓글엔 알림 안 보냄" 분기와
+	// 자연스럽게 구분되도록 한다.
+	private static final Long POST_AUTHOR_ID = 999L;
 
 	private User mockUser(Long id) {
 		User user = mock(User.class);
@@ -55,6 +63,7 @@ class BoardCommentServiceTest {
 		BoardPost post = mock(BoardPost.class);
 		lenient().when(post.getId()).thenReturn(id);
 		lenient().when(post.getStatus()).thenReturn(status);
+		lenient().when(post.getUser()).thenReturn(mockUser(POST_AUTHOR_ID));
 		return post;
 	}
 
@@ -82,6 +91,23 @@ class BoardCommentServiceTest {
 
 		assertThat(response.id()).isEqualTo(100L);
 		verify(post).incrementCommentCount();
+		verify(notificationService).notify(
+				eq(POST_AUTHOR_ID), eq(NotificationType.COMMUNITY),
+				any(), any(), eq("/board/10"), eq("BOARD_POST"), eq(10L));
+	}
+
+	@Test
+	void createCommentDoesNotNotifyWhenCommenterIsPostAuthor() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User author = mockUser(POST_AUTHOR_ID);
+		BoardComment saved = mockComment(100L, post, author, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(userRepository.getReferenceById(POST_AUTHOR_ID)).willReturn(author);
+		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(saved);
+
+		boardCommentService.createComment(POST_AUTHOR_ID, 10L, new BoardCommentCreateRequest("댓글 내용", null));
+
+		verify(notificationService, never()).notify(any(), any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -124,6 +150,28 @@ class BoardCommentServiceTest {
 
 		assertThat(response.id()).isEqualTo(101L);
 		assertThat(response.parentCommentId()).isEqualTo(100L);
+		// 답글 작성자(1L)가 부모 댓글 작성자(1L)와 같은 사람이므로 알림을 보내지 않는다.
+		verify(notificationService, never()).notify(any(), any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void createReplyNotifiesParentAuthorWhenDifferentFromReplier() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User parentAuthor = mockUser(2L);
+		User replier = mockUser(1L);
+		BoardComment parent = mockComment(100L, post, parentAuthor, "부모 댓글", BoardStatus.ACTIVE);
+		BoardComment reply = mockComment(101L, post, replier, "답글 내용", BoardStatus.ACTIVE);
+		lenient().when(reply.getParentComment()).thenReturn(parent);
+		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(parent));
+		given(userRepository.getReferenceById(1L)).willReturn(replier);
+		given(boardCommentRepository.save(any(BoardComment.class))).willReturn(reply);
+
+		boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("답글 내용", 100L));
+
+		verify(notificationService).notify(
+				eq(2L), eq(NotificationType.COMMUNITY),
+				any(), any(), eq("/board/10"), eq("BOARD_COMMENT"), eq(101L));
 	}
 
 	@Test
