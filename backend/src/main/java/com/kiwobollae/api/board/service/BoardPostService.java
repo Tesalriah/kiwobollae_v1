@@ -13,7 +13,9 @@ import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardPostLikeRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
+import com.kiwobollae.api.content.dto.response.PlantJournalResponse;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
+import com.kiwobollae.api.content.service.PlantJournalService;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.time.LocalDateTime;
@@ -38,6 +40,7 @@ public class BoardPostService {
 	private final BoardPostLikeRepository boardPostLikeRepository;
 	private final UserRepository userRepository;
 	private final PlantJournalRepository plantJournalRepository;
+	private final PlantJournalService plantJournalService;
 
 	@Transactional
 	public BoardPostResponse createPost(Long userId, BoardPostCreateRequest request) {
@@ -82,6 +85,17 @@ public class BoardPostService {
 
 	public Page<BoardPostResponse> getMyPosts(Long userId, Pageable pageable) {
 		return boardPostRepository.findAllByUserId(userId, pageable).map(BoardPostResponse::from);
+	}
+
+	// PLANT_QNA 게시글에 연동된 일지는 작성자가 아닌 다른 열람자도 볼 수 있어야 한다(글을 올린
+	// 시점에 본인이 공유하기로 선택한 것이므로). 게시글이 실제로 그 일지를 연동하고 있는지 여기서
+	// 확인한 뒤에만 PlantJournalService의 소유자 무관 조회로 넘긴다.
+	public PlantJournalResponse getLinkedJournal(Long postId) {
+		BoardPost post = findActivePost(postId);
+		if (post.getJournalId() == null) {
+			throw new BusinessException(ErrorCode.BOARD_JOURNAL_NOT_LINKED);
+		}
+		return plantJournalService.getPublicSnapshot(post.getJournalId());
 	}
 
 	// 다른 도메인(report)이 게시글 존재 여부만 확인할 때 쓰는 조회 전용 진입점.

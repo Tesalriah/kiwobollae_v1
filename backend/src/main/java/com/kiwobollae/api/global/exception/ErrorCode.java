@@ -141,7 +141,8 @@ public enum ErrorCode {
 	BOARD_COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."),
 	BOARD_COMMENT_NOT_OWNED(HttpStatus.FORBIDDEN, "본인이 작성한 댓글만 삭제할 수 있습니다."),
 	BOARD_ALREADY_LIKED(HttpStatus.CONFLICT, "이미 좋아요를 눌렀습니다."),
-	BOARD_LIKE_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요를 누르지 않았습니다.");
+	BOARD_LIKE_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요를 누르지 않았습니다."),
+	BOARD_JOURNAL_NOT_LINKED(HttpStatus.NOT_FOUND, "연동된 성장 일지가 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String defaultMessage;

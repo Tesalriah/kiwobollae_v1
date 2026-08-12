@@ -5,6 +5,7 @@ import com.kiwobollae.api.board.dto.request.BoardPostUpdateRequest;
 import com.kiwobollae.api.board.dto.response.BoardPostResponse;
 import com.kiwobollae.api.board.entity.enums.BoardCategory;
 import com.kiwobollae.api.board.service.BoardPostService;
+import com.kiwobollae.api.content.dto.response.PlantJournalResponse;
 import com.kiwobollae.api.global.common.ApiResponse;
 import com.kiwobollae.api.global.common.ApiVersion;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,6 +69,15 @@ public class BoardController {
 			@PathVariable Long id
 	) {
 		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPost(id, userId)));
+	}
+
+	@Operation(
+			summary = "게시글에 연동된 성장 일지 조회",
+			description = "PLANT_QNA 게시글에 연동된 일지를 작성자가 아닌 다른 사용자도 볼 수 있습니다."
+	)
+	@GetMapping("/{id}/journal")
+	public ResponseEntity<ApiResponse<PlantJournalResponse>> getLinkedJournal(@PathVariable Long id) {
+		return ResponseEntity.ok(ApiResponse.success(boardPostService.getLinkedJournal(id)));
 	}
 
 	@Operation(summary = "게시글 수정", description = "작성자 본인만 제목/본문을 수정할 수 있습니다. 카테고리는 변경할 수 없습니다.")

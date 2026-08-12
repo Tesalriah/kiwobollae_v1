@@ -24,8 +24,10 @@ import com.kiwobollae.api.board.entity.enums.BoardHiddenBy;
 import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardPostLikeRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
+import com.kiwobollae.api.content.dto.response.PlantJournalResponse;
 import com.kiwobollae.api.content.entity.PlantJournal;
 import com.kiwobollae.api.content.repository.PlantJournalRepository;
+import com.kiwobollae.api.content.service.PlantJournalService;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.util.List;
@@ -47,6 +49,7 @@ class BoardPostServiceTest {
 	@Mock private BoardPostLikeRepository boardPostLikeRepository;
 	@Mock private UserRepository userRepository;
 	@Mock private PlantJournalRepository plantJournalRepository;
+	@Mock private PlantJournalService plantJournalService;
 	@InjectMocks private BoardPostService boardPostService;
 
 	private User mockUser(Long id, UserRole role) {
@@ -219,6 +222,42 @@ class BoardPostServiceTest {
 		given(boardPostRepository.findByIdWithUser(404L)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> boardPostService.getPost(404L, null))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+	}
+
+	@Test
+	void getLinkedJournalReturnsSnapshotRegardlessOfViewer() {
+		User author = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, author, BoardStatus.ACTIVE);
+		lenient().when(post.getJournalId()).thenReturn(77L);
+		PlantJournalResponse snapshot = mock(PlantJournalResponse.class);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+		given(plantJournalService.getPublicSnapshot(77L)).willReturn(snapshot);
+
+		PlantJournalResponse result = boardPostService.getLinkedJournal(10L);
+
+		assertThat(result).isSameAs(snapshot);
+	}
+
+	@Test
+	void getLinkedJournalFailsWhenPostHasNoJournal() {
+		User author = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, author, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardPostService.getLinkedJournal(10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_JOURNAL_NOT_LINKED);
+	}
+
+	@Test
+	void getLinkedJournalFailsWhenPostNotFound() {
+		given(boardPostRepository.findByIdWithUser(404L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> boardPostService.getLinkedJournal(404L))
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
