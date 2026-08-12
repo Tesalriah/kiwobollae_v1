@@ -230,7 +230,7 @@ function BoardPageContent() {
         <>
           <div className="mt-3 text-right text-xs text-faint">전체 {totalElements}개</div>
           {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-1.5">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
