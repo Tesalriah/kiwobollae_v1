@@ -6,7 +6,7 @@ import { ApiError, resolveImageUrl } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import { useStore } from '@/lib/store';
 import { useUI } from '@/lib/ui';
-import { getJournal, PlantJournalData } from '@/lib/journal-api';
+import { PlantJournalData } from '@/lib/journal-api';
 import { createReport } from '@/lib/report-api';
 import {
   BoardCategory,
@@ -17,6 +17,7 @@ import {
   deleteBoardPost,
   getBoardComments,
   getBoardPost,
+  getBoardPostJournal,
   likeBoardComment,
   likeBoardPost,
   unlikeBoardComment,
@@ -82,8 +83,8 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
         setLikedComments(
           Object.fromEntries(commentList.map((comment) => [comment.id, comment.likedByMe])),
         );
-        if (postData.journalId && state.accessToken) {
-          getJournal(postData.journalId, state.accessToken, controller.signal)
+        if (postData.journalId) {
+          getBoardPostJournal(postId, controller.signal)
             .then((j) => setJournal(j))
             .catch(() => setJournal(null));
         }

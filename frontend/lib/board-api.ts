@@ -1,4 +1,5 @@
 import { request, SpringPage } from '@/lib/api';
+import { PlantJournalData } from '@/lib/journal-api';
 
 export type BoardCategory = 'NOTICE' | 'FREE' | 'PLANT_QNA';
 export type BoardStatus = 'ACTIVE' | 'HIDDEN';
@@ -71,6 +72,14 @@ export function getBoardPost(
   signal?: AbortSignal,
 ): Promise<BoardPostData> {
   return request<BoardPostData>(`/api/v1/board/posts/${id}`, { accessToken, signal });
+}
+
+// PLANT_QNA 게시글에 연동된 일지는 작성자가 아닌 다른 열람자도 볼 수 있다.
+export function getBoardPostJournal(
+  postId: number,
+  signal?: AbortSignal,
+): Promise<PlantJournalData> {
+  return request<PlantJournalData>(`/api/v1/board/posts/${postId}/journal`, { signal });
 }
 
 export function createBoardPost(
