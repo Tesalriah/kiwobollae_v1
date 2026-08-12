@@ -183,13 +183,13 @@ function BoardPageContent() {
                 className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 bg-brand-soft/40 px-4 py-3 text-ink hover:bg-brand-soft/70 hover:text-ink sm:px-5"
               >
                 <div className="text-center text-[15px]">📌</div>
-                <div className="min-w-0">
-                  <span className={`mr-1.5 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span className={`shrink-0 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
                     [{CATEGORY_LABEL[post.category]}]
                   </span>
-                  <span className="font-extrabold">{post.title}</span>
+                  <span className="min-w-0 truncate font-extrabold">{post.title}</span>
                   {post.commentCount > 0 && (
-                    <span className="ml-1.5 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
+                    <span className="shrink-0 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
                   )}
                 </div>
                 <div className="hidden truncate text-center text-sm text-sub sm:block">{post.nickname}</div>
@@ -210,13 +210,13 @@ function BoardPageContent() {
                 className="grid grid-cols-[28px_1fr_40px_40px] sm:grid-cols-[60px_1fr_90px_84px_56px_56px] items-center gap-2 px-4 py-3 text-ink hover:bg-[#F8FAF3] hover:text-ink sm:px-5"
               >
                 <div className="text-center text-sm text-faint">{baseNumber - index}</div>
-                <div className="min-w-0">
-                  <span className={`mr-1.5 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span className={`shrink-0 text-xs font-extrabold ${CATEGORY_TEXT[post.category]}`}>
                     [{CATEGORY_LABEL[post.category]}]
                   </span>
-                  <span className="truncate font-bold">{post.title}</span>
+                  <span className="min-w-0 truncate font-bold">{post.title}</span>
                   {post.commentCount > 0 && (
-                    <span className="ml-1.5 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
+                    <span className="shrink-0 text-xs font-bold text-[#b5502f]">[{post.commentCount}]</span>
                   )}
                 </div>
                 <div className="hidden truncate text-center text-sm text-sub sm:block">{post.nickname}</div>
