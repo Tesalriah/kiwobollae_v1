@@ -4,6 +4,7 @@ import AdminAssetKeyField from "@/components/admin/AdminAssetKeyField";
 import AdminCouponPanel from "@/components/admin/AdminCouponPanel";
 import AdminGachaOperationsPanel from "@/components/admin/AdminGachaOperationsPanel";
 import AdminCardMarketRevenuePanel from "@/components/admin/AdminCardMarketRevenuePanel";
+import AdminChargeProductPanel from "@/features/payment/AdminChargeProductPanel";
 import AdminPointAdjustmentPanel from "@/features/point/AdminPointAdjustmentPanel";
 import { formatPhone } from "@/components/AddressForm";
 import {
@@ -146,6 +147,7 @@ const ADMIN_TABS = [
   ["gacha-operations", "가챠 장애 관리"],
   ["card-market-revenue", "거래소 수익"],
   ["points", "포인트 관리"],
+  ["charge-products", "충전 상품 관리"],
   ["reports", "신고 관리"],
   ["species", "종 관리"],
 ] as const;
@@ -1398,8 +1400,18 @@ export default function Admin({
         </div>
       )}
 
-      {tab === "points" && (
-        <AdminPointAdjustmentPanel accessToken={state.accessToken} />
+      {tab === "points" && state.accessToken && state.user && (
+        <AdminPointAdjustmentPanel
+          accessToken={state.accessToken}
+          adminUserId={state.user.id}
+        />
+      )}
+
+      {tab === "charge-products" && state.accessToken && state.user && (
+        <AdminChargeProductPanel
+          accessToken={state.accessToken}
+          adminUserId={state.user.id}
+        />
       )}
 
       {tab === "coupons" && state.accessToken && (
