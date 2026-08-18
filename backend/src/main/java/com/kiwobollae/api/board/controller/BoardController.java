@@ -81,13 +81,19 @@ public class BoardController {
 		return ResponseEntity.ok(ApiResponse.success(boardPostService.getPost(id, userId, resolveClientIp(request))));
 	}
 
-	// 프록시/로드밸런서를 거치면 X-Forwarded-For의 첫 번째 주소가 실제 클라이언트 IP다.
+	// 이 앱 앞에는 리버스 프록시(NPM/nginx)가 정확히 한 홉만 있고, nginx는 X-Forwarded-For에
+	// 자신이 실제로 관측한 접속 IP를 매번 "끝에" 추가한다(append 방식). 그런데 이 헤더는
+	// 클라이언트가 요청에 직접 실어 보낼 수도 있는 값이라, 맨 앞(첫 번째) 항목을 그대로 신뢰하면
+	// 클라이언트가 자기 요청에 X-Forwarded-For: 1.2.3.4를 미리 넣어 보내는 것만으로 IP를 위조해
+	// 동일 IP당 조회수 1회 제한이나 게시글/댓글 rate limit을 우회할 수 있다. 신뢰할 수 있는 건
+	// 프록시가 직접 추가한 마지막 항목뿐이므로 그 값만 쓴다.
 	// RateLimitFilter의 동일 로직과 중복이지만, 필터는 컨트롤러에서 재사용할 수 있는 형태가
 	// 아니라 이 한 곳에서만 쓰는 지금은 그대로 각자 두고 필요해지면 공용 유틸로 뺀다.
 	private String resolveClientIp(HttpServletRequest request) {
 		String forwardedFor = request.getHeader("X-Forwarded-For");
 		if (forwardedFor != null && !forwardedFor.isBlank()) {
-			return forwardedFor.split(",")[0].trim();
+			String[] hops = forwardedFor.split(",");
+			return hops[hops.length - 1].trim();
 		}
 		return request.getRemoteAddr();
 	}

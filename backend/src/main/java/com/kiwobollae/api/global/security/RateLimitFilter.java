@@ -85,10 +85,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 		response.getWriter().write(objectMapper.writeValueAsString(body));
 	}
 
+	// 이 앱 앞에는 리버스 프록시(NPM/nginx)가 정확히 한 홉만 있고, X-Forwarded-For의 "마지막"
+	// 항목이 그 프록시가 직접 관측해 append한 값이다. 맨 앞 항목은 클라이언트가 요청에 직접
+	// 실어 보낸 임의의 값일 수 있어, 그걸 신뢰하면 헤더 하나로 rate limit을 우회할 수 있다.
 	private String resolveClientKey(HttpServletRequest request) {
 		String forwardedFor = request.getHeader("X-Forwarded-For");
 		if (forwardedFor != null && !forwardedFor.isBlank()) {
-			return forwardedFor.split(",")[0].trim();
+			String[] hops = forwardedFor.split(",");
+			return hops[hops.length - 1].trim();
 		}
 		return request.getRemoteAddr();
 	}
