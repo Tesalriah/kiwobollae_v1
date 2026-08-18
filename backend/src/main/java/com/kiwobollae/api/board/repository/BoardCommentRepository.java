@@ -17,6 +17,12 @@ public interface BoardCommentRepository extends JpaRepository<BoardComment, Long
 			+ "where c.post.id = :postId and c.status = :status order by c.createdAt asc")
 	List<BoardComment> findAllByPostIdAndStatus(@Param("postId") Long postId, @Param("status") BoardStatus status);
 
+	// 부모가 숨김 처리돼도 ACTIVE 상태인 대댓글은 트리에서 계속 보여야 하므로, 상태 필터 없이
+	// 전부 가져온다 — HIDDEN 댓글은 내용만 프론트에서 "삭제된 댓글입니다"로 대체 표시한다.
+	@Query("select c from BoardComment c join fetch c.user "
+			+ "where c.post.id = :postId order by c.createdAt asc")
+	List<BoardComment> findAllByPostId(@Param("postId") Long postId);
+
 	@Query("select c from BoardComment c join fetch c.user where c.id = :id")
 	Optional<BoardComment> findByIdWithUser(@Param("id") Long id);
 

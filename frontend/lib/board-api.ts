@@ -31,10 +31,13 @@ export interface BoardCommentData {
   id: number;
   postId: number;
   userId: number;
-  nickname: string;
-  content: string;
+  // 숨김 처리된(status === 'HIDDEN') 댓글은 답글 트리 연결을 위해 목록에는 남지만, 실제 작성자
+  // 닉네임/내용은 서버가 null로 내려준다 — 화면에는 "삭제된 댓글입니다" 같은 자리표시자를 보여준다.
+  nickname: string | null;
+  content: string | null;
   parentCommentId: number | null;
   likeCount: number;
+  status: BoardStatus;
   createdAt: string;
   updatedAt: string;
   likedByMe: boolean;

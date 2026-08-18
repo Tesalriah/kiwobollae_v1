@@ -222,7 +222,7 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
 
   const startEdit = (comment: BoardCommentData) => {
     setEditingComment(comment.id);
-    setEditDraft(comment.content);
+    setEditDraft(comment.content ?? '');
   };
 
   const cancelEdit = () => {
@@ -332,6 +332,19 @@ export default function BoardDetailPage({ params }: { params: { id: string } }) 
 
   const renderComment = (comment: BoardCommentData, depth: number) => {
     const children = childrenOf(comment.id);
+    // 부모가 숨김 처리돼도 그 아래 답글은 계속 보여야 하므로, 자리표시자만 그리고 children은
+    // 그대로 재귀 렌더링한다.
+    if (comment.status === 'HIDDEN') {
+      return (
+        <div key={comment.id} style={{ marginLeft: depth > 0 ? 28 : 0 }}>
+          <div className={`py-3.5 text-[13.5px] italic text-faint ${depth > 0 ? 'border-l-2 border-[#eceee5] pl-3.5' : ''}`}>
+            {depth > 0 && <span className="mr-1 not-italic">↳</span>}
+            삭제된 댓글이에요.
+          </div>
+          {children.map((child) => renderComment(child, depth + 1))}
+        </div>
+      );
+    }
     const isMine = state.user?.id === comment.userId;
     return (
       <div key={comment.id} style={{ marginLeft: depth > 0 ? 28 : 0 }}>
