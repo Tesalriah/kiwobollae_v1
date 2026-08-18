@@ -21,6 +21,7 @@ import com.kiwobollae.api.board.repository.BoardPostViewRepository;
 import com.kiwobollae.api.journal.dto.response.PlantJournalResponse;
 import com.kiwobollae.api.journal.repository.PlantJournalRepository;
 import com.kiwobollae.api.journal.service.PlantJournalService;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.time.LocalDateTime;
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -52,6 +52,7 @@ public class BoardPostService {
 	private final PlantJournalRepository plantJournalRepository;
 	private final PlantJournalService plantJournalService;
 	private final BoardImageUploadService boardImageUploadService;
+	private final UniqueInsertGuard uniqueInsertGuard;
 
 	@Transactional
 	public BoardPostResponse createPost(Long userId, BoardPostCreateRequest request) {
@@ -83,8 +84,12 @@ public class BoardPostService {
 			BoardCategory category, String keyword, BoardSearchType searchType, Pageable pageable, Long userId) {
 		String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
 		BoardSearchType effectiveSearchType = searchType == null ? BoardSearchType.TITLE_CONTENT : searchType;
+		// 카테고리 필터 없는 "전체" 조회는 프론트가 공지를 별도로 고정 노출하므로, 이 페이지네이션
+		// 결과 자체에서 공지를 빼서 totalElements/totalPages가 실제 표시되는 일반 글 개수와
+		// 정확히 맞게 한다. 특정 카테고리를 이미 고른 경우(NOTICE 포함)는 그대로 둔다.
+		BoardCategory excludeCategory = category == null ? BoardCategory.NOTICE : null;
 		Page<BoardPost> posts = boardPostRepository.search(
-				BoardStatus.ACTIVE, category, trimmedKeyword, effectiveSearchType.name(), pageable);
+				BoardStatus.ACTIVE, category, excludeCategory, trimmedKeyword, effectiveSearchType.name(), pageable);
 		if (posts.isEmpty()) {
 			return posts.map(post -> BoardPostResponse.from(post, List.of()));
 		}
@@ -110,14 +115,16 @@ public class BoardPostService {
 
 	// 같은 IP의 재조회는 조회수를 올리지 않는다. existsBy 사전 체크와 저장 사이의 동시성 경쟁으로
 	// 유니크 제약이 위반돼도(동시에 첫 조회가 들어온 경우) 조용히 무시하고 넘어간다 — 좋아요와
-	// 달리 실패를 사용자에게 보여줄 필요가 없는 부가 지표다.
+	// 달리 실패를 사용자에게 보여줄 필요가 없는 부가 지표다. 저장 시도는 UniqueInsertGuard로
+	// 별도 트랜잭션에 격리해, 유니크 제약 위반이 이 메서드를 호출한 트랜잭션(게시글 조회 자체)
+	// 에 영향을 주지 않게 한다.
 	private void recordViewOnce(BoardPost post, String viewerIp) {
 		if (boardPostViewRepository.existsByPostIdAndIpAddress(post.getId(), viewerIp)) {
 			return;
 		}
-		try {
-			boardPostViewRepository.saveAndFlush(BoardPostView.create(post, viewerIp, LocalDateTime.now(KST)));
-		} catch (DataIntegrityViolationException e) {
+		boolean recorded = uniqueInsertGuard.tryInsert(() ->
+				boardPostViewRepository.saveAndFlush(BoardPostView.create(post, viewerIp, LocalDateTime.now(KST))));
+		if (!recorded) {
 			return;
 		}
 		boardPostRepository.incrementViewCount(post.getId());
@@ -209,11 +216,12 @@ public class BoardPostService {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
 		User user = userRepository.getReferenceById(userId);
-		try {
-			// existsBy 사전 체크와 저장 사이에는 동시성 경쟁이 있을 수 있다(더블 클릭, 중복 요청 등).
-			// 유니크 제약 위반이 원시 DB 에러로 새는 대신 "이미 좋아요를 눌렀다"는 안내로 보이게 한다.
-			boardPostLikeRepository.saveAndFlush(BoardPostLike.create(post, user, LocalDateTime.now(KST)));
-		} catch (DataIntegrityViolationException e) {
+		// existsBy 사전 체크와 저장 사이에는 동시성 경쟁이 있을 수 있다(더블 클릭, 중복 요청 등).
+		// 유니크 제약 위반이 원시 DB 에러로 새는 대신 "이미 좋아요를 눌렀다"는 안내로 보이게 하고,
+		// UniqueInsertGuard로 별도 트랜잭션에 격리해 이 좋아요 요청 자체의 트랜잭션이 오염되지 않게 한다.
+		boolean saved = uniqueInsertGuard.tryInsert(() ->
+				boardPostLikeRepository.saveAndFlush(BoardPostLike.create(post, user, LocalDateTime.now(KST))));
+		if (!saved) {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
 		boardPostRepository.incrementLikeCount(id);

@@ -30,6 +30,7 @@ import com.kiwobollae.api.journal.dto.response.PlantJournalResponse;
 import com.kiwobollae.api.journal.entity.PlantJournal;
 import com.kiwobollae.api.journal.repository.PlantJournalRepository;
 import com.kiwobollae.api.journal.service.PlantJournalService;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.util.List;
@@ -55,7 +56,18 @@ class BoardPostServiceTest {
 	@Mock private PlantJournalRepository plantJournalRepository;
 	@Mock private PlantJournalService plantJournalService;
 	@Mock private BoardImageUploadService boardImageUploadService;
+	@Mock private UniqueInsertGuard uniqueInsertGuard;
 	@InjectMocks private BoardPostService boardPostService;
+
+	// 실제로는 별도 트랜잭션에서 Runnable을 실행한 뒤 성공 여부를 반환하는데, 여기서는 그 Runnable을
+	// 그대로 실행해 saveAndFlush 같은 부수효과가 실제로 일어나게 하면서 성공(true)을 흉내낸다.
+	private void stubUniqueInsertGuardSucceeds() {
+		lenient().when(uniqueInsertGuard.tryInsert(any())).thenAnswer(invocation -> {
+			Runnable insert = invocation.getArgument(0);
+			insert.run();
+			return true;
+		});
+	}
 
 	private User mockUser(Long id, UserRole role) {
 		User user = mock(User.class);
@@ -161,11 +173,25 @@ class BoardPostServiceTest {
 	}
 
 	@Test
+	void getPostsExcludesNoticeWhenCategoryIsNull() {
+		// 카테고리 필터 없는 "전체" 조회는 프론트가 공지를 별도로 고정 노출하므로, 이 페이지네이션
+		// 결과 자체에서는 공지를 빼야 totalElements/totalPages가 실제 표시 목록과 맞는다.
+		Pageable pageable = PageRequest.of(0, 10);
+		Page<BoardPost> page = new PageImpl<>(List.of());
+		given(boardPostRepository.search(BoardStatus.ACTIVE, null, BoardCategory.NOTICE, null, "TITLE_CONTENT", pageable))
+				.willReturn(page);
+
+		boardPostService.getPosts(null, null, null, pageable, null);
+
+		verify(boardPostRepository).search(BoardStatus.ACTIVE, null, BoardCategory.NOTICE, null, "TITLE_CONTENT", pageable);
+	}
+
+	@Test
 	void getPostsMapsRepositoryPage() {
 		Pageable pageable = PageRequest.of(0, 10);
 		User user = mockUser(1L, UserRole.USER);
 		Page<BoardPost> page = new PageImpl<>(List.of(mockPost(10L, user, BoardStatus.ACTIVE)));
-		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, null, "TITLE_CONTENT", pageable)).willReturn(page);
+		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, null, null, "TITLE_CONTENT", pageable)).willReturn(page);
 
 		Page<BoardPostResponse> result = boardPostService.getPosts(BoardCategory.FREE, null, null, pageable, null);
 
@@ -178,7 +204,7 @@ class BoardPostServiceTest {
 		Pageable pageable = PageRequest.of(0, 10);
 		User user = mockUser(1L, UserRole.USER);
 		Page<BoardPost> page = new PageImpl<>(List.of(mockPost(10L, user, BoardStatus.ACTIVE)));
-		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, null, "TITLE_CONTENT", pageable)).willReturn(page);
+		given(boardPostRepository.search(BoardStatus.ACTIVE, BoardCategory.FREE, null, null, "TITLE_CONTENT", pageable)).willReturn(page);
 		given(boardPostLikeRepository.findLikedPostIds(2L, List.of(10L))).willReturn(List.of(10L));
 
 		Page<BoardPostResponse> result = boardPostService.getPosts(BoardCategory.FREE, null, null, pageable, 2L);
@@ -192,6 +218,7 @@ class BoardPostServiceTest {
 		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
 		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 		given(boardPostViewRepository.existsByPostIdAndIpAddress(10L, "1.2.3.4")).willReturn(false);
+		stubUniqueInsertGuardSucceeds();
 
 		BoardPostResponse response = boardPostService.getPost(10L, null, "1.2.3.4");
 
@@ -363,6 +390,7 @@ class BoardPostServiceTest {
 		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
 		given(boardPostLikeRepository.existsByPostIdAndUserId(10L, 1L)).willReturn(false);
 		given(userRepository.getReferenceById(1L)).willReturn(user);
+		stubUniqueInsertGuardSucceeds();
 
 		boardPostService.likePost(1L, 10L);
 
@@ -380,6 +408,24 @@ class BoardPostServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_ALREADY_LIKED);
+	}
+
+	@Test
+	void likePostFailsWhenConcurrentRequestWinsTheRace() {
+		// existsBy 사전 체크는 통과했지만(false), 그 직후 다른 요청이 먼저 커밋해 유니크 제약을
+		// 위반하는 경쟁 상황 — UniqueInsertGuard가 이를 감지해 false를 반환한다.
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+		given(boardPostLikeRepository.existsByPostIdAndUserId(10L, 1L)).willReturn(false);
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+		given(uniqueInsertGuard.tryInsert(any())).willReturn(false);
+
+		assertThatThrownBy(() -> boardPostService.likePost(1L, 10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_ALREADY_LIKED);
+		verify(boardPostRepository, never()).incrementLikeCount(any());
 	}
 
 	@Test

@@ -13,6 +13,7 @@ import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardCommentLikeRepository;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.notification.entity.enums.NotificationType;
@@ -22,7 +23,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -43,6 +43,7 @@ public class BoardCommentService {
 	private final BoardPostRepository boardPostRepository;
 	private final UserRepository userRepository;
 	private final NotificationService notificationService;
+	private final UniqueInsertGuard uniqueInsertGuard;
 
 	@Transactional
 	public BoardCommentResponse createComment(Long userId, Long postId, BoardCommentCreateRequest request) {
@@ -97,7 +98,9 @@ public class BoardCommentService {
 
 	public List<BoardCommentResponse> getComments(Long postId, Long userId) {
 		findActivePost(postId);
-		List<BoardComment> comments = boardCommentRepository.findAllByPostIdAndStatus(postId, BoardStatus.ACTIVE);
+		// HIDDEN 댓글도 함께 가져온다 — 부모가 숨겨져도 그 아래 ACTIVE 답글은 트리에서 계속 보여야
+		// 하는데, ACTIVE만 가져오면 부모 노드가 없어 답글이 화면에서 통째로 사라져 버린다.
+		List<BoardComment> comments = boardCommentRepository.findAllByPostId(postId);
 		if (userId == null || comments.isEmpty()) {
 			return comments.stream().map(BoardCommentResponse::from).toList();
 		}
@@ -140,11 +143,12 @@ public class BoardCommentService {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
 		User user = userRepository.getReferenceById(userId);
-		try {
-			// existsBy 사전 체크와 저장 사이의 동시성 경쟁으로 유니크 제약이 위반돼도 원시 DB 에러
-			// 대신 "이미 좋아요를 눌렀다"는 안내로 보이게 한다.
-			boardCommentLikeRepository.saveAndFlush(BoardCommentLike.create(comment, user, LocalDateTime.now(KST)));
-		} catch (DataIntegrityViolationException e) {
+		// existsBy 사전 체크와 저장 사이의 동시성 경쟁으로 유니크 제약이 위반돼도 원시 DB 에러 대신
+		// "이미 좋아요를 눌렀다"는 안내로 보이게 하고, UniqueInsertGuard로 별도 트랜잭션에 격리해
+		// 이 요청 자체의 트랜잭션이 오염되지 않게 한다.
+		boolean saved = uniqueInsertGuard.tryInsert(() ->
+				boardCommentLikeRepository.saveAndFlush(BoardCommentLike.create(comment, user, LocalDateTime.now(KST))));
+		if (!saved) {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
 		boardCommentRepository.incrementLikeCount(commentId);

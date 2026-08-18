@@ -22,6 +22,7 @@ import com.kiwobollae.api.board.entity.enums.BoardStatus;
 import com.kiwobollae.api.board.repository.BoardCommentLikeRepository;
 import com.kiwobollae.api.board.repository.BoardCommentRepository;
 import com.kiwobollae.api.board.repository.BoardPostRepository;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.notification.entity.enums.NotificationType;
@@ -46,11 +47,20 @@ class BoardCommentServiceTest {
 	@Mock private BoardPostRepository boardPostRepository;
 	@Mock private UserRepository userRepository;
 	@Mock private NotificationService notificationService;
+	@Mock private UniqueInsertGuard uniqueInsertGuard;
 	@InjectMocks private BoardCommentService boardCommentService;
 
 	// 댓글 작성자와는 다른 id를 써서, notifyOnComment의 "본인 글/댓글엔 알림 안 보냄" 분기와
 	// 자연스럽게 구분되도록 한다.
 	private static final Long POST_AUTHOR_ID = 999L;
+
+	private void stubUniqueInsertGuardSucceeds() {
+		lenient().when(uniqueInsertGuard.tryInsert(any())).thenAnswer(invocation -> {
+			Runnable insert = invocation.getArgument(0);
+			insert.run();
+			return true;
+		});
+	}
 
 	private User mockUser(Long id) {
 		User user = mock(User.class);
@@ -224,7 +234,7 @@ class BoardCommentServiceTest {
 		User user = mockUser(1L);
 		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
 		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
-		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
+		given(boardCommentRepository.findAllByPostId(10L))
 				.willReturn(List.of(comment));
 
 		List<BoardCommentResponse> responses = boardCommentService.getComments(10L, null);
@@ -240,7 +250,7 @@ class BoardCommentServiceTest {
 		User user = mockUser(1L);
 		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
 		given(boardPostRepository.findById(10L)).willReturn(Optional.of(post));
-		given(boardCommentRepository.findAllByPostIdAndStatus(10L, BoardStatus.ACTIVE))
+		given(boardCommentRepository.findAllByPostId(10L))
 				.willReturn(List.of(comment));
 		given(boardCommentLikeRepository.findLikedCommentIds(2L, List.of(100L))).willReturn(List.of(100L));
 
@@ -321,10 +331,28 @@ class BoardCommentServiceTest {
 		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
 		given(boardCommentLikeRepository.existsByCommentIdAndUserId(100L, 1L)).willReturn(false);
 		given(userRepository.getReferenceById(1L)).willReturn(user);
+		stubUniqueInsertGuardSucceeds();
 
 		boardCommentService.likeComment(1L, 100L);
 
 		verify(boardCommentRepository).incrementLikeCount(100L);
+	}
+
+	@Test
+	void likeCommentFailsWhenConcurrentRequestWinsTheRace() {
+		BoardPost post = mockPost(10L, BoardStatus.ACTIVE);
+		User user = mockUser(1L);
+		BoardComment comment = mockComment(100L, post, user, "댓글 내용", BoardStatus.ACTIVE);
+		given(boardCommentRepository.findByIdWithUser(100L)).willReturn(Optional.of(comment));
+		given(boardCommentLikeRepository.existsByCommentIdAndUserId(100L, 1L)).willReturn(false);
+		given(userRepository.getReferenceById(1L)).willReturn(user);
+		given(uniqueInsertGuard.tryInsert(any())).willReturn(false);
+
+		assertThatThrownBy(() -> boardCommentService.likeComment(1L, 100L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_ALREADY_LIKED);
+		verify(boardCommentRepository, never()).incrementLikeCount(any());
 	}
 
 	@Test
