@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -53,4 +54,26 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
 	@Query(value = "select p from BoardPost p join fetch p.user where p.user.id = :userId",
 			countQuery = "select count(p) from BoardPost p where p.user.id = :userId")
 	Page<BoardPost> findAllByUserId(@Param("userId") Long userId, Pageable pageable);
+
+	// product.stock 등 다른 카운터들과 동일하게, 메모리에 로드한 값 + 1을 dirty checking으로
+	// 반영하는 방식(Lost Update 위험)을 피하고 DB에서 직접 원자적으로 증감한다.
+	@Modifying
+	@Query("update BoardPost p set p.likeCount = p.likeCount + 1 where p.id = :id")
+	int incrementLikeCount(@Param("id") Long id);
+
+	@Modifying
+	@Query("update BoardPost p set p.likeCount = p.likeCount - 1 where p.id = :id")
+	int decrementLikeCount(@Param("id") Long id);
+
+	@Modifying
+	@Query("update BoardPost p set p.viewCount = p.viewCount + 1 where p.id = :id")
+	int incrementViewCount(@Param("id") Long id);
+
+	@Modifying
+	@Query("update BoardPost p set p.commentCount = p.commentCount + 1 where p.id = :id")
+	int incrementCommentCount(@Param("id") Long id);
+
+	@Modifying
+	@Query("update BoardPost p set p.commentCount = p.commentCount - 1 where p.id = :id")
+	int decrementCommentCount(@Param("id") Long id);
 }

@@ -120,7 +120,7 @@ public class BoardPostService {
 		} catch (DataIntegrityViolationException e) {
 			return;
 		}
-		post.incrementViewCount();
+		boardPostRepository.incrementViewCount(post.getId());
 	}
 
 	public Page<BoardPostResponse> getMyPosts(Long userId, Pageable pageable) {
@@ -216,7 +216,7 @@ public class BoardPostService {
 		} catch (DataIntegrityViolationException e) {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
-		post.incrementLikeCount();
+		boardPostRepository.incrementLikeCount(id);
 	}
 
 	@Transactional
@@ -224,7 +224,7 @@ public class BoardPostService {
 		BoardPostLike like = boardPostLikeRepository.findByPostIdAndUserId(id, userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_LIKE_NOT_FOUND));
 		boardPostLikeRepository.delete(like);
-		boardPostRepository.getReferenceById(id).decrementLikeCount();
+		boardPostRepository.decrementLikeCount(id);
 	}
 
 	private BoardPost findOwnedActivePost(Long userId, Long id) {

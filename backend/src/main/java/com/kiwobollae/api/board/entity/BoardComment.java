@@ -83,11 +83,6 @@ public class BoardComment extends BaseTimeEntity {
 		this.hiddenAt = hiddenAt;
 	}
 
-	public void incrementLikeCount() {
-		this.likeCount++;
-	}
-
-	public void decrementLikeCount() {
-		this.likeCount--;
-	}
+	// likeCount 증감은 엔티티 메서드가 아니라 BoardCommentRepository의 원자적 UPDATE로만 한다 —
+	// "로드한 값 + 1"을 dirty checking으로 반영하면 동시 요청에서 갱신 유실(Lost Update)이 생긴다.
 }

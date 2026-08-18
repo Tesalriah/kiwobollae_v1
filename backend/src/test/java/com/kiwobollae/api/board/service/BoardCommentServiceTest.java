@@ -90,7 +90,7 @@ class BoardCommentServiceTest {
 				boardCommentService.createComment(1L, 10L, new BoardCommentCreateRequest("댓글 내용", null));
 
 		assertThat(response.id()).isEqualTo(100L);
-		verify(post).incrementCommentCount();
+		verify(boardPostRepository).incrementCommentCount(10L);
 		verify(notificationService).notify(
 				eq(POST_AUTHOR_ID), eq(NotificationType.COMMUNITY),
 				any(), any(), eq("/board/10"), eq("BOARD_POST"), eq(10L));
@@ -259,7 +259,7 @@ class BoardCommentServiceTest {
 		boardCommentService.deleteComment(1L, 100L);
 
 		verify(comment).hide(eq(BoardHiddenBy.AUTHOR), any());
-		verify(post).decrementCommentCount();
+		verify(boardPostRepository).decrementCommentCount(10L);
 	}
 
 	@Test
@@ -310,7 +310,7 @@ class BoardCommentServiceTest {
 		boardCommentService.adminHideComment(100L);
 
 		verify(comment).hide(eq(BoardHiddenBy.ADMIN), any());
-		verify(post).decrementCommentCount();
+		verify(boardPostRepository).decrementCommentCount(10L);
 	}
 
 	@Test
@@ -324,7 +324,7 @@ class BoardCommentServiceTest {
 
 		boardCommentService.likeComment(1L, 100L);
 
-		verify(comment).incrementLikeCount();
+		verify(boardCommentRepository).incrementLikeCount(100L);
 	}
 
 	@Test
@@ -343,15 +343,13 @@ class BoardCommentServiceTest {
 
 	@Test
 	void unlikeCommentSucceedsWhenLiked() {
-		BoardComment comment = mockComment(100L, mockPost(10L, BoardStatus.ACTIVE), mockUser(1L), "댓글 내용", BoardStatus.ACTIVE);
 		BoardCommentLike like = mock(BoardCommentLike.class);
 		given(boardCommentLikeRepository.findByCommentIdAndUserId(100L, 1L)).willReturn(Optional.of(like));
-		given(boardCommentRepository.getReferenceById(100L)).willReturn(comment);
 
 		boardCommentService.unlikeComment(1L, 100L);
 
 		verify(boardCommentLikeRepository).delete(like);
-		verify(comment).decrementLikeCount();
+		verify(boardCommentRepository).decrementLikeCount(100L);
 	}
 
 	@Test

@@ -98,24 +98,7 @@ public class BoardPost extends BaseTimeEntity {
 		this.hiddenAt = hiddenAt;
 	}
 
-	// board_post_likes/board_comments를 매번 COUNT하지 않도록 비정규화 캐시로 둔다.
-	public void incrementCommentCount() {
-		this.commentCount++;
-	}
-
-	public void decrementCommentCount() {
-		this.commentCount--;
-	}
-
-	public void incrementLikeCount() {
-		this.likeCount++;
-	}
-
-	public void decrementLikeCount() {
-		this.likeCount--;
-	}
-
-	public void incrementViewCount() {
-		this.viewCount++;
-	}
+	// board_post_likes/board_comments를 매번 COUNT하지 않도록 비정규화 캐시로 둔다. 증감은
+	// 엔티티 메서드가 아니라 BoardPostRepository의 원자적 UPDATE로만 한다 — "로드한 값 + 1"을
+	// dirty checking으로 반영하면 동시 요청에서 갱신 유실(Lost Update)이 생긴다.
 }

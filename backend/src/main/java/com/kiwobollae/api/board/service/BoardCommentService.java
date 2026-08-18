@@ -52,7 +52,7 @@ public class BoardCommentService {
 				: null;
 		User user = userRepository.getReferenceById(userId);
 		BoardComment comment = boardCommentRepository.save(BoardComment.create(post, user, request.content(), parent));
-		post.incrementCommentCount();
+		boardPostRepository.incrementCommentCount(post.getId());
 		notifyOnComment(userId, post, parent, comment);
 		return BoardCommentResponse.from(comment);
 	}
@@ -123,14 +123,14 @@ public class BoardCommentService {
 	public void deleteComment(Long userId, Long commentId) {
 		BoardComment comment = findOwnedActiveComment(userId, commentId);
 		comment.hide(BoardHiddenBy.AUTHOR, LocalDateTime.now(KST));
-		comment.getPost().decrementCommentCount();
+		boardPostRepository.decrementCommentCount(comment.getPost().getId());
 	}
 
 	@Transactional
 	public void adminHideComment(Long commentId) {
 		BoardComment comment = findActiveComment(commentId);
 		comment.hide(BoardHiddenBy.ADMIN, LocalDateTime.now(KST));
-		comment.getPost().decrementCommentCount();
+		boardPostRepository.decrementCommentCount(comment.getPost().getId());
 	}
 
 	@Transactional
@@ -147,7 +147,7 @@ public class BoardCommentService {
 		} catch (DataIntegrityViolationException e) {
 			throw new BusinessException(ErrorCode.BOARD_ALREADY_LIKED);
 		}
-		comment.incrementLikeCount();
+		boardCommentRepository.incrementLikeCount(commentId);
 	}
 
 	@Transactional
@@ -155,7 +155,7 @@ public class BoardCommentService {
 		BoardCommentLike like = boardCommentLikeRepository.findByCommentIdAndUserId(commentId, userId)
 				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_LIKE_NOT_FOUND));
 		boardCommentLikeRepository.delete(like);
-		boardCommentRepository.getReferenceById(commentId).decrementLikeCount();
+		boardCommentRepository.decrementLikeCount(commentId);
 	}
 
 	private BoardComment findOwnedActiveComment(Long userId, Long commentId) {

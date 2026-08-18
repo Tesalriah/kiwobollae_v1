@@ -161,7 +161,7 @@ public class BoardInitData implements ApplicationRunner {
 			BoardComment saved = boardCommentRepository.save(
 					BoardComment.create(post, author, seed.content(), parent));
 			savedComments[i] = saved;
-			post.incrementCommentCount();
+			boardPostRepository.incrementCommentCount(post.getId());
 		}
 
 		List<User> likers = List.of(admin, test, user);
@@ -174,7 +174,7 @@ public class BoardInitData implements ApplicationRunner {
 					continue;
 				}
 				boardPostLikeRepository.save(BoardPostLike.create(post, liker, LocalDateTime.now()));
-				post.incrementLikeCount();
+				boardPostRepository.incrementLikeCount(post.getId());
 			}
 		}
 	}

@@ -197,7 +197,7 @@ class BoardPostServiceTest {
 
 		assertThat(response.id()).isEqualTo(10L);
 		assertThat(response.likedByMe()).isFalse();
-		verify(post).incrementViewCount();
+		verify(boardPostRepository).incrementViewCount(10L);
 	}
 
 	@Test
@@ -209,7 +209,7 @@ class BoardPostServiceTest {
 
 		boardPostService.getPost(10L, null, "1.2.3.4");
 
-		verify(post, never()).incrementViewCount();
+		verify(boardPostRepository, never()).incrementViewCount(any());
 	}
 
 	@Test
@@ -235,7 +235,7 @@ class BoardPostServiceTest {
 				.isInstanceOf(BusinessException.class)
 				.extracting(ex -> ((BusinessException) ex).getErrorCode())
 				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
-		verify(post, never()).incrementViewCount();
+		verify(boardPostRepository, never()).incrementViewCount(any());
 	}
 
 	@Test
@@ -366,7 +366,7 @@ class BoardPostServiceTest {
 
 		boardPostService.likePost(1L, 10L);
 
-		verify(post).incrementLikeCount();
+		verify(boardPostRepository).incrementLikeCount(10L);
 	}
 
 	@Test
@@ -384,16 +384,13 @@ class BoardPostServiceTest {
 
 	@Test
 	void unlikePostSucceedsWhenLiked() {
-		User user = mockUser(1L, UserRole.USER);
-		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
 		BoardPostLike like = mock(BoardPostLike.class);
 		given(boardPostLikeRepository.findByPostIdAndUserId(10L, 1L)).willReturn(Optional.of(like));
-		given(boardPostRepository.getReferenceById(10L)).willReturn(post);
 
 		boardPostService.unlikePost(1L, 10L);
 
 		verify(boardPostLikeRepository).delete(like);
-		verify(post).decrementLikeCount();
+		verify(boardPostRepository).decrementLikeCount(10L);
 	}
 
 	@Test

@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,4 +24,13 @@ public interface BoardCommentRepository extends JpaRepository<BoardComment, Long
 	@Query(value = "select c from BoardComment c join fetch c.user join fetch c.post where c.user.id = :userId",
 			countQuery = "select count(c) from BoardComment c where c.user.id = :userId")
 	Page<BoardComment> findAllByUserId(@Param("userId") Long userId, Pageable pageable);
+
+	// BoardPostRepository의 카운터들과 동일하게 Lost Update를 피하기 위한 원자적 증감.
+	@Modifying
+	@Query("update BoardComment c set c.likeCount = c.likeCount + 1 where c.id = :id")
+	int incrementLikeCount(@Param("id") Long id);
+
+	@Modifying
+	@Query("update BoardComment c set c.likeCount = c.likeCount - 1 where c.id = :id")
+	int decrementLikeCount(@Param("id") Long id);
 }
