@@ -9,6 +9,7 @@ import { deleteJournal, deleteJournalImage, getJournal, PlantJournalData, update
 import { getBoardPostJournal } from '@/lib/board-api';
 import { formatDate } from '@/lib/format';
 import { createReport } from '@/lib/report-api';
+import JournalImageAnalysisPanel from '@/features/journal/JournalImageAnalysisPanel';
 
 const REASONS = [['spam', '스팸/광고'], ['inappropriate', '부적절한 콘텐츠'], ['stolen', '사진 도용'], ['etc', '기타']];
 const MAX_SIZE = 5 * 1024 * 1024;
@@ -425,6 +426,15 @@ function JournalDetailInner({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
+
+      {state.accessToken && (
+        <JournalImageAnalysisPanel
+          journalId={journal.id}
+          images={journal.images}
+          activeIndex={viewIndex}
+          accessToken={state.accessToken}
+        />
+      )}
 
       {reportOpen && (
         <div onClick={() => setReportOpen(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(46,54,42,.4)] p-5">
