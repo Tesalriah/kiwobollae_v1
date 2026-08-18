@@ -94,16 +94,15 @@ function BoardPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // 공지사항은 카테고리/페이지와 무관하게 항상 맨 위에 고정해서 보여주지만, 검색 중에는
-  // 검색과 무관한 공지가 고정 노출되면 혼란스러우니 끄고 검색 결과 목록에만 맡긴다.
+  // 공지사항은 카테고리/페이지와 무관하게 항상 맨 위에 고정해서 보여준다. 검색 중에는 이 목록도
+  // 같은 검색어로 필터링해서, 검색어와 무관한 공지가 계속 고정 노출되거나 반대로 검색어와 일치하는
+  // 공지가 결과에서 누락되는 일이 없게 한다.
   useEffect(() => {
-    if (!hydrated || keyword) {
-      if (keyword) setNotices([]);
-      return;
-    }
+    if (!hydrated) return;
     const controller = new AbortController();
+    const trimmedKeyword = keyword.trim() || undefined;
 
-    getBoardPosts('NOTICE', 0, 50, state.accessToken, controller.signal)
+    getBoardPosts('NOTICE', 0, 50, state.accessToken, controller.signal, trimmedKeyword, searchType)
       .then((result) => setNotices(result.content))
       .catch((requestError) => {
         if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
@@ -111,7 +110,7 @@ function BoardPageContent() {
       });
 
     return () => controller.abort();
-  }, [hydrated, state.accessToken, keyword]);
+  }, [hydrated, state.accessToken, keyword, searchType]);
 
   // 카테고리 탭/페이지/검색어를 URL 쿼리로 반영해 새로고침해도 그대로 유지되게 한다.
   useEffect(() => {
@@ -166,13 +165,13 @@ function BoardPageContent() {
     return () => controller.abort();
   }, [hydrated, tab, page, keyword, searchType, sort, state.accessToken]);
 
-  // NOTICE 탭 자체를 볼 때는 목록이 이미 전부 공지라 별도 고정 영역이 필요 없다.
+  // NOTICE 탭 자체를 볼 때는 목록이 이미 전부 공지라 별도 고정 영역이 필요 없다. 그 외 탭은
+  // 백엔드가 이 페이지네이션 결과 자체에서 이미 공지를 제외하고 내려주므로(excludeCategory),
+  // totalElements가 곧 화면에 실제로 나열되는 일반 글 개수와 정확히 일치한다 — 프론트에서 다시
+  // 걸러낼 필요도, 그만큼 빼서 보정할 필요도 없다.
   const pinned = tab === 'NOTICE' ? [] : notices;
-  const normal = tab === 'NOTICE' ? posts : posts.filter((p) => p.category !== 'NOTICE');
-  // ALL 탭만 공지가 실제로 목록에 섞여서 totalElements에 포함되니 그만큼 빼준다.
-  // FREE/PLANT_QNA/NOTICE는 이미 카테고리로 필터링된 개수라 그대로 쓴다.
-  const nonNoticeTotal = tab === 'ALL' ? Math.max(0, totalElements - notices.length) : totalElements;
-  const baseNumber = nonNoticeTotal - page * PAGE_SIZE;
+  const normal = posts;
+  const baseNumber = totalElements - page * PAGE_SIZE;
 
   const changeTab = (next: 'ALL' | BoardCategory) => {
     setTab(next);

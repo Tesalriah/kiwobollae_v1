@@ -17,8 +17,12 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
 	// keyword는 searchType(제목+내용/제목/내용/글쓴이/댓글)에 따라 매칭된다(대소문자 무시).
 	// keyword가 null/빈 값이면 검색 조건 전체를 무시한다. searchType은 :keyword가 있을 때만 의미가 있으므로
 	// keyword가 null이면 :searchType 값과 무관하게 항상 참인 첫 번째 or 절에서 短서킷된다.
+	// excludeCategory는 프론트가 공지를 별도로 고정 노출하는 화면(카테고리 필터 없는 "전체" 탭)에서
+	// 그 카테고리(NOTICE)를 이 페이지네이션 결과 자체에서 아예 빼기 위한 것 — 클라이언트에서 받은
+	// 뒤에 걸러내면 페이지당 개수/전체 개수/전체 페이지 수가 실제 표시 목록과 안 맞게 된다.
 	@Query(value = "select p from BoardPost p join fetch p.user "
 			+ "where p.status = :status and (:category is null or p.category = :category) "
+			+ "and (:excludeCategory is null or p.category <> :excludeCategory) "
 			+ "and (:keyword is null"
 			+ " or (:searchType = 'TITLE_CONTENT' and (lower(p.title) like lower(concat('%', :keyword, '%')) "
 			+ "or lower(p.content) like lower(concat('%', :keyword, '%'))))"
@@ -30,6 +34,7 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
 			+ "and lower(c.content) like lower(concat('%', :keyword, '%')))))",
 			countQuery = "select count(p) from BoardPost p "
 					+ "where p.status = :status and (:category is null or p.category = :category) "
+					+ "and (:excludeCategory is null or p.category <> :excludeCategory) "
 					+ "and (:keyword is null"
 					+ " or (:searchType = 'TITLE_CONTENT' and (lower(p.title) like lower(concat('%', :keyword, '%')) "
 					+ "or lower(p.content) like lower(concat('%', :keyword, '%'))))"
@@ -42,6 +47,7 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
 	Page<BoardPost> search(
 			@Param("status") BoardStatus status,
 			@Param("category") BoardCategory category,
+			@Param("excludeCategory") BoardCategory excludeCategory,
 			@Param("keyword") String keyword,
 			@Param("searchType") String searchType,
 			Pageable pageable
