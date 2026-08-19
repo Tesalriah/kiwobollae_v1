@@ -224,6 +224,11 @@ public class BoardPostService {
 	private void hidePostAndCleanImages(BoardPost post, BoardHiddenBy hiddenBy, Long ownerUserId) {
 		List<BoardPostImage> images = boardPostImageRepository.findByPostIdOrderBySortOrderAsc(post.getId());
 		post.hide(hiddenBy, LocalDateTime.now(KST));
+		// existsByImageUrl로 참조 여부를 확인하는 delete()가 실제로 S3에서 지우게 하려면
+		// BoardPostImage 행을 먼저 없애야 한다 — 지우지 않으면 이 URL이 여전히 "참조 중"으로
+		// 보여 delete()가 매번 정리를 거부하고, 복원 API/안내 문구가 말하는 "이미지는 이미
+		// S3에서 삭제됐다"가 실제로는 지켜지지 않는다.
+		boardPostImageRepository.deleteByPostId(post.getId());
 		images.forEach(image -> boardImageUploadService.delete(image.getImageUrl(), ownerUserId));
 	}
 
