@@ -244,7 +244,20 @@ export default function AdminReportPanel({
                 return (
                   <tr key={report.id} className="border-t border-[#f2f3ec]">
                     <td className="px-5 py-3.5 font-bold">
-                      {TARGET[report.targetType]} #{report.targetId}
+                      {report.targetType === "POST" ? (
+                        <Link
+                          href={`/board/${report.targetId}`}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-brand hover:text-brand-dark hover:underline"
+                        >
+                          {TARGET[report.targetType]} #{report.targetId}
+                        </Link>
+                      ) : (
+                        <>
+                          {TARGET[report.targetType]} #{report.targetId}
+                        </>
+                      )}
                     </td>
                     <td className="max-w-[220px] truncate px-4 py-3.5 text-sub">
                       {report.reason}
