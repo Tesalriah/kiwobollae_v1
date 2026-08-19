@@ -2,6 +2,7 @@ package com.kiwobollae.api.auth.repository;
 
 import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.auth.entity.enums.AuthProvider;
+import com.kiwobollae.api.auth.entity.enums.UserStatus;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,6 +21,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	boolean existsByNickname(String nickname);
 
 	boolean existsByNicknameAndIdNot(String nickname, Long id);
+
+	// JwtAuthenticationFilter가 매 요청마다 "이 유저 지금도 ACTIVE인가"를 확인하는 데 쓴다.
+	// User 전체를 로드하지 않고 idx_users_status 인덱스로 바로 확인하는 가벼운 쿼리.
+	boolean existsByIdAndStatus(Long id, UserStatus status);
 
 	// 사용자 행에 쓰기 락을 걸어, 같은 사용자에 대한 동시 요청을(예: 배송지 등록 시
 	// count-then-insert) 직렬화해야 하는 곳에서 쓴다. 다른 사용자 행에는 영향 없다.

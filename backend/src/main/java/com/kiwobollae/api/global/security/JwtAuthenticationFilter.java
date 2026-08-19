@@ -1,5 +1,7 @@
 package com.kiwobollae.api.global.security;
 
+import com.kiwobollae.api.auth.entity.enums.UserStatus;
+import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -31,6 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	public static final String AUTH_ERROR_CODE_ATTRIBUTE = "authErrorCode";
 
 	private final JwtTokenProvider jwtTokenProvider;
+	private final UserRepository userRepository;
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -41,6 +44,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			JwtTokenProvider.TokenStatus status = jwtTokenProvider.checkToken(token);
 			if (status == JwtTokenProvider.TokenStatus.VALID && jwtTokenProvider.isAccessToken(token)) {
 				Long userId = jwtTokenProvider.getUserId(token);
+				// JWT의 서명/만료만 검증하고 role 클레임을 그대로 믿으면, 발급 이후(관리자가 계정을
+				// 정지시키는 등) 상태가 바뀌어도 액세스 토큰이 만료되기 전까지(최대 1시간) 그대로
+				// 통과한다. 모든 요청이 지나가는 이 필터 한 곳에서만 현재 DB 상태를 다시 확인하면,
+				// 기능별 컨트롤러/서비스를 하나씩 고칠 필요 없이 전체가 즉시 막힌다.
+				if (!userRepository.existsByIdAndStatus(userId, UserStatus.ACTIVE)) {
+					request.setAttribute(AUTH_ERROR_CODE_ATTRIBUTE, ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
+					filterChain.doFilter(request, response);
+					return;
+				}
+
 				String role = jwtTokenProvider.getRole(token);
 				List<GrantedAuthority> authorities = role != null
 						? List.of(new SimpleGrantedAuthority("ROLE_" + role))
