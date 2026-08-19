@@ -8,7 +8,7 @@
 // (kept in sync via setAccessToken below) purely so it can attach the
 // Authorization header without importing the store.
 import { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
-import { ApiError, AUTH_EXPIRED_EVENT, reissue, logout as apiLogout, setAccessToken, setUnauthorizedHandler } from '@/lib/api';
+import { ApiError, AUTH_EXPIRED_EVENT, isAccessTokenExpired, reissue, logout as apiLogout, setAccessToken, setUnauthorizedHandler } from '@/lib/api';
 import { getWallet } from '@/features/point/api';
 import { getCart } from '@/lib/order-api';
 import { getMyPlants } from '@/lib/plant-api';
@@ -134,20 +134,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        setState({
-          ...DEFAULTS,
-          ...JSON.parse(raw),
-          wallet: EMPTY_WALLET,
-          readyCards: 0,
-          notifications: [],
-          unreadNotificationCount: 0,
-        });
+    (async () => {
+      let restored: StoreState = DEFAULTS;
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) {
+          restored = {
+            ...DEFAULTS,
+            ...JSON.parse(raw),
+            wallet: EMPTY_WALLET,
+            readyCards: 0,
+            notifications: [],
+            unreadNotificationCount: 0,
+          };
+        }
+      } catch (e) {}
+
+      // A permitAll endpoint (e.g. board post detail) silently treats an expired/garbage
+      // bearer token as "no token" instead of erroring, so waiting for a 401 to trigger
+      // the usual silent-refresh flow never happens there. Refresh proactively here,
+      // before hydrated flips true and any page's fetch effects fire with a stale token.
+      if (restored.accessToken && isAccessTokenExpired(restored.accessToken)) {
+        try {
+          const res = await reissue();
+          restored = {
+            ...restored,
+            authed: true,
+            accessToken: res.accessToken,
+            user: {
+              id: res.user.id,
+              email: res.user.email,
+              nickname: res.user.nickname,
+              role: res.user.role,
+              level: res.user.level,
+            },
+          };
+        } catch {
+          restored = { ...restored, authed: false, accessToken: null, user: null };
+        }
       }
-    } catch (e) {}
-    setHydrated(true);
+
+      setState(restored);
+      setHydrated(true);
+    })();
   }, []);
 
   // Keep lib/api.ts's in-memory copy of the token in sync with whatever was

@@ -100,6 +100,24 @@ export async function request<T>(path: string, options: ApiRequestOptions = {}, 
   return (body ? body.data : undefined) as T;
 }
 
+// Reads the JWT payload's `exp` claim (seconds since epoch) without verifying the
+// signature — this is a client-side convenience check only, never a security boundary.
+// Used to proactively refresh a stale access token *before* firing requests instead of
+// waiting for a 401 that a permitAll endpoint may never send: an expired/garbage bearer
+// token on a public endpoint (e.g. board post detail) is silently treated as "no token"
+// by the backend, so it degrades to an anonymous view rather than erroring — a hidden
+// post an admin should be able to see then looks exactly like "not found".
+export function isAccessTokenExpired(token: string, skewSeconds = 30): boolean {
+  try {
+    const payload = token.split('.')[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    if (typeof json.exp !== 'number') return false;
+    return json.exp * 1000 <= Date.now() + skewSeconds * 1000;
+  } catch {
+    return true;
+  }
+}
+
 // Shape of Spring Data's Page<T> as Jackson serializes it by default (content/number/
 // totalElements/... alongside a nested pageable/sort object we don't need on the client).
 export interface SpringPage<T> {
