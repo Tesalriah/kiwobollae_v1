@@ -231,6 +231,25 @@ export function hideBoardPostAsAdmin(id: number, accessToken: string): Promise<v
   return request<void>(`/api/v1/admin/board/posts/${id}/hide`, { method: 'PATCH', accessToken });
 }
 
+// 숨김 처리 시점에 첨부 이미지가 이미 S3에서 삭제되므로, 복원해도 이미지 없이 본문/상태만 돌아온다.
+export function restoreBoardPostAsAdmin(id: number, accessToken: string): Promise<void> {
+  return request<void>(`/api/v1/admin/board/posts/${id}/restore`, { method: 'PATCH', accessToken });
+}
+
+export function getBoardPostsForAdmin(
+  status: BoardStatus,
+  page: number,
+  size: number,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<SpringPage<BoardPostData>> {
+  const query = new URLSearchParams({ status, page: String(page), size: String(size) });
+  return request<SpringPage<BoardPostData>>(`/api/v1/admin/board/posts?${query.toString()}`, {
+    accessToken,
+    signal,
+  });
+}
+
 export function hideBoardCommentAsAdmin(id: number, accessToken: string): Promise<void> {
   return request<void>(`/api/v1/admin/board/comments/${id}/hide`, { method: 'PATCH', accessToken });
 }

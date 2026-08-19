@@ -5,6 +5,7 @@ import AdminCouponPanel from "@/components/admin/AdminCouponPanel";
 import AdminGachaOperationsPanel from "@/components/admin/AdminGachaOperationsPanel";
 import AdminInquiryPanel from "@/components/admin/AdminInquiryPanel";
 import AdminReportPanel from "@/components/admin/AdminReportPanel";
+import AdminBoardPanel from "@/components/admin/AdminBoardPanel";
 import AdminCardMarketRevenuePanel from "@/components/admin/AdminCardMarketRevenuePanel";
 import AdminChargeProductPanel from "@/features/payment/AdminChargeProductPanel";
 import AdminPointAdjustmentPanel from "@/features/point/AdminPointAdjustmentPanel";
@@ -152,6 +153,7 @@ const ADMIN_TABS = [
   ["inquiries", "문의 관리"],
   ["charge-products", "충전 상품 관리"],
   ["reports", "신고 관리"],
+  ["board", "게시판 관리"],
   ["species", "종 관리"],
 ] as const;
 
@@ -1608,6 +1610,10 @@ export default function Admin({
             </div>
           </div>
         </div>
+      )}
+
+      {tab === "board" && state.accessToken && (
+        <AdminBoardPanel accessToken={state.accessToken} />
       )}
 
       {tab === "reports" && state.accessToken && (

@@ -103,9 +103,11 @@ public class BoardPostService {
 	}
 
 	@Transactional
-	public BoardPostResponse getPost(Long id, Long userId, String viewerIp) {
-		BoardPost post = findActivePost(id);
-		if (viewerIp != null && !viewerIp.isBlank()) {
+	public BoardPostResponse getPost(Long id, Long userId, String viewerIp, boolean isAdmin) {
+		// 관리자는 게시판 관리 화면(숨김 목록)에서 "상세 보기"로 넘어와 숨겨진 글도 확인할 수
+		// 있어야 하므로 상태 체크를 건너뛴다. 일반 사용자는 그대로 ACTIVE만 볼 수 있다.
+		BoardPost post = findViewablePost(id, isAdmin);
+		if (viewerIp != null && !viewerIp.isBlank() && post.getStatus() == BoardStatus.ACTIVE) {
 			recordViewOnce(post, viewerIp);
 		}
 		boolean likedByMe = userId != null && boardPostLikeRepository.existsByPostIdAndUserId(id, userId);
@@ -128,6 +130,18 @@ public class BoardPostService {
 			return;
 		}
 		boardPostRepository.incrementViewCount(post.getId());
+	}
+
+	// 관리자 전용 — 상태(기본 HIDDEN)로 필터링한 게시글 목록. 신고 여부와 무관하게 관리자가
+	// 게시판을 둘러보다 숨긴 글까지 전부 확인할 수 있어야 하므로 소유권/신고 체크를 하지 않는다.
+	public Page<BoardPostResponse> getPostsForAdmin(BoardStatus status, Pageable pageable) {
+		Page<BoardPost> posts = boardPostRepository.search(status, null, null, null, null, pageable);
+		if (posts.isEmpty()) {
+			return posts.map(post -> BoardPostResponse.from(post, List.of()));
+		}
+		List<Long> postIds = posts.map(BoardPost::getId).toList();
+		Map<Long, List<BoardPostImage>> imagesByPost = loadImagesByPost(postIds);
+		return posts.map(post -> BoardPostResponse.from(post, imagesByPost.getOrDefault(post.getId(), List.of())));
 	}
 
 	public Page<BoardPostResponse> getMyPosts(Long userId, Pageable pageable) {
@@ -182,6 +196,18 @@ public class BoardPostService {
 	public void adminHidePost(Long id) {
 		BoardPost post = findActivePost(id);
 		hidePostAndCleanImages(post, BoardHiddenBy.ADMIN, post.getUser().getId());
+	}
+
+	// 첨부 이미지는 숨김 처리 시점에 이미 S3에서 삭제돼 복원되지 않으므로(BoardPost.restore
+	// 참고), 이 API는 본문/상태만 되돌린다 — 이미지가 있던 글은 복원 후에도 이미지 없이 보인다.
+	@Transactional
+	public void adminRestorePost(Long id) {
+		BoardPost post = boardPostRepository.findByIdWithUser(id)
+				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_POST_NOT_FOUND));
+		if (post.getStatus() != BoardStatus.HIDDEN) {
+			throw new BusinessException(ErrorCode.BOARD_POST_NOT_FOUND);
+		}
+		post.restore();
 	}
 
 	// 숨김 처리는 복구 API가 없어 사실상 영구 삭제와 같으므로, 더 이상 어떤 게시글도 참조하지
@@ -244,9 +270,13 @@ public class BoardPostService {
 	}
 
 	private BoardPost findActivePost(Long id) {
+		return findViewablePost(id, false);
+	}
+
+	private BoardPost findViewablePost(Long id, boolean allowHidden) {
 		BoardPost post = boardPostRepository.findByIdWithUser(id)
 				.orElseThrow(() -> new BusinessException(ErrorCode.BOARD_POST_NOT_FOUND));
-		if (post.getStatus() != BoardStatus.ACTIVE) {
+		if (post.getStatus() != BoardStatus.ACTIVE && !allowHidden) {
 			throw new BusinessException(ErrorCode.BOARD_POST_NOT_FOUND);
 		}
 		return post;
