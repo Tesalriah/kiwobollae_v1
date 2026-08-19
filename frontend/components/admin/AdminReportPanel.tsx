@@ -13,8 +13,13 @@ import {
   ReportTargetType,
 } from "@/lib/report-api";
 import { useUI } from "@/lib/ui";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAdminPaginatedList } from "./use-admin-paginated-list";
+
+export interface AdminReportTargetUserFilter {
+  id: number;
+  label: string;
+}
 
 type TargetPreview =
   | { type: "comment"; data: BoardCommentData }
@@ -53,8 +58,13 @@ function formatDateTime(value: string): string {
 
 export default function AdminReportPanel({
   accessToken,
+  targetUser = null,
+  onClearTargetUser,
 }: {
   accessToken: string;
+  // 유저 관리 탭의 "누적 신고수"를 눌러 넘어온 경우, 그 유저를 겨냥한 신고만 필터링해 보여준다.
+  targetUser?: AdminReportTargetUserFilter | null;
+  onClearTargetUser?: () => void;
 }) {
   const { showToast } = useUI();
   const [status, setStatus] = useState<ReportStatus | "">("");
@@ -72,8 +82,8 @@ export default function AdminReportPanel({
 
   const fetchPage = useCallback(
     (page: number, signal?: AbortSignal) =>
-      getReportsForAdmin(accessToken, status || undefined, page, 20, signal),
-    [accessToken, status],
+      getReportsForAdmin(accessToken, status || undefined, page, 20, signal, targetUser?.id),
+    [accessToken, status, targetUser?.id],
   );
   const {
     page,
@@ -85,6 +95,13 @@ export default function AdminReportPanel({
     errorMessage,
     reload,
   } = useAdminPaginatedList(fetchPage, "신고 목록을 불러오지 못했어요.");
+
+  // 유저 관리 탭에서 다른 유저의 누적 신고수를 눌러 targetUser가 바뀌면(패널이 이미 열려 있는
+  // 상태여도) 1페이지부터 다시 보여준다.
+  useEffect(() => {
+    setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetUser?.id]);
 
   const changeStatus = (next: ReportStatus | "") => {
     setStatus(next);
@@ -178,6 +195,20 @@ export default function AdminReportPanel({
         <p className="mt-1 text-sm text-sub">
           회원이 접수한 신고를 확인하고 조치합니다.
         </p>
+
+        {targetUser && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-brand-soft px-3 py-2 text-xs font-bold text-brand-dark">
+            <span className="material-symbols-outlined text-[16px]">filter_alt</span>
+            {targetUser.label}님을 대상으로 한 신고만 보는 중
+            <button
+              type="button"
+              onClick={onClearTargetUser}
+              className="ml-auto cursor-pointer rounded-md border border-brand-dark/30 bg-white px-2 py-0.5 text-[11px] font-bold text-brand-dark"
+            >
+              필터 해제
+            </button>
+          </div>
+        )}
 
         <div className="mt-4 flex gap-2">
           {(

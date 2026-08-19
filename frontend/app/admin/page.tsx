@@ -4,8 +4,9 @@ import AdminAssetKeyField from "@/components/admin/AdminAssetKeyField";
 import AdminCouponPanel from "@/components/admin/AdminCouponPanel";
 import AdminGachaOperationsPanel from "@/components/admin/AdminGachaOperationsPanel";
 import AdminInquiryPanel from "@/components/admin/AdminInquiryPanel";
-import AdminReportPanel from "@/components/admin/AdminReportPanel";
+import AdminReportPanel, { AdminReportTargetUserFilter } from "@/components/admin/AdminReportPanel";
 import AdminBoardPanel from "@/components/admin/AdminBoardPanel";
+import AdminUserPanel from "@/components/admin/AdminUserPanel";
 import AdminCardMarketRevenuePanel from "@/components/admin/AdminCardMarketRevenuePanel";
 import AdminChargeProductPanel from "@/features/payment/AdminChargeProductPanel";
 import AdminPointAdjustmentPanel from "@/features/point/AdminPointAdjustmentPanel";
@@ -154,6 +155,7 @@ const ADMIN_TABS = [
   ["charge-products", "충전 상품 관리"],
   ["reports", "신고 관리"],
   ["board", "게시판 관리"],
+  ["users", "유저 관리"],
   ["species", "종 관리"],
 ] as const;
 
@@ -180,6 +182,8 @@ export default function Admin({
   const [tab, setTab] = useState(() =>
     ADMIN_TABS.some(([key]) => key === requestedTab) ? requestedTab! : "orders",
   );
+  // 유저 관리 탭의 "누적 신고수"를 누르면 신고 관리 탭으로 전환하면서 이 값을 채운다.
+  const [reportsUserFilter, setReportsUserFilter] = useState<AdminReportTargetUserFilter | null>(null);
 
   useEffect(() => {
     setTab(
@@ -1616,8 +1620,22 @@ export default function Admin({
         <AdminBoardPanel accessToken={state.accessToken} />
       )}
 
+      {tab === "users" && state.accessToken && (
+        <AdminUserPanel
+          accessToken={state.accessToken}
+          onViewReports={(userId, label) => {
+            setReportsUserFilter({ id: userId, label });
+            changeTab("reports");
+          }}
+        />
+      )}
+
       {tab === "reports" && state.accessToken && (
-        <AdminReportPanel accessToken={state.accessToken} />
+        <AdminReportPanel
+          accessToken={state.accessToken}
+          targetUser={reportsUserFilter}
+          onClearTargetUser={() => setReportsUserFilter(null)}
+        />
       )}
     </div>
   );
