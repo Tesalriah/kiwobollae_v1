@@ -94,7 +94,14 @@ export async function request<T>(path: string, options: ApiRequestOptions = {}, 
   const body = await res.json().catch(() => null);
 
   if (!res.ok) {
-    if (res.status === 401 && !isCredentialEndpoint && typeof window !== 'undefined') {
+    // AUTH_ACCOUNT_NOT_ACTIVE is a 403 (not 401), thrown when JwtAuthenticationFilter
+    // re-checks DB status per request and finds the account is no longer ACTIVE (e.g. an
+    // admin suspended it mid-session, before the access token naturally expired). Treat it
+    // the same as an expired session — force logout — rather than leaving the user stuck
+    // retrying the same blocked action forever. Checked by `code`, not status, so a normal
+    // 403 (AUTH_ACCESS_DENIED — e.g. a non-admin hitting an admin route) does NOT log out.
+    const isSessionInvalidated = res.status === 401 || body?.code === 'AUTH_ACCOUNT_NOT_ACTIVE';
+    if (isSessionInvalidated && !isCredentialEndpoint && typeof window !== 'undefined') {
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
     }
     const code = body?.code || 'UNKNOWN_ERROR';
