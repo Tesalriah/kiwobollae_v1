@@ -7,6 +7,7 @@ export const BOARD_LIST_URL_KEY = 'kwb_board_list_url';
 
 export type BoardCategory = 'NOTICE' | 'FREE' | 'PLANT_QNA';
 export type BoardStatus = 'ACTIVE' | 'HIDDEN';
+export type BoardHiddenBy = 'AUTHOR' | 'ADMIN';
 export type BoardSearchType = 'TITLE_CONTENT' | 'TITLE' | 'CONTENT' | 'AUTHOR' | 'COMMENT';
 
 export interface BoardPostData {
@@ -22,6 +23,8 @@ export interface BoardPostData {
   likeCount: number;
   commentCount: number;
   status: BoardStatus;
+  // status가 HIDDEN일 때만 의미가 있다 — 관리자가 숨겼는지(ADMIN) 작성자가 자진 삭제했는지(AUTHOR).
+  hiddenBy: BoardHiddenBy | null;
   createdAt: string;
   updatedAt: string;
   likedByMe: boolean;

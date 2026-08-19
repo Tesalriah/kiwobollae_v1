@@ -396,6 +396,47 @@ class BoardPostServiceTest {
 	}
 
 	@Test
+	void adminRestorePostRestoresPostHiddenByAdmin() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.HIDDEN);
+		lenient().when(post.getHiddenBy()).thenReturn(BoardHiddenBy.ADMIN);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		boardPostService.adminRestorePost(10L);
+
+		verify(post).restore();
+	}
+
+	// 작성자가 스스로 삭제한 글까지 관리자가 관리 화면에서 실수로 되살릴 수 있으면 안 된다 —
+	// hiddenBy가 ADMIN이 아니면 복원 자체를 거부한다.
+	@Test
+	void adminRestorePostFailsWhenHiddenByAuthor() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.HIDDEN);
+		lenient().when(post.getHiddenBy()).thenReturn(BoardHiddenBy.AUTHOR);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardPostService.adminRestorePost(10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.COMMON_VALIDATION_FAILED);
+		verify(post, never()).restore();
+	}
+
+	@Test
+	void adminRestorePostFailsWhenPostNotHidden() {
+		User user = mockUser(1L, UserRole.USER);
+		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);
+		given(boardPostRepository.findByIdWithUser(10L)).willReturn(Optional.of(post));
+
+		assertThatThrownBy(() -> boardPostService.adminRestorePost(10L))
+				.isInstanceOf(BusinessException.class)
+				.extracting(ex -> ((BusinessException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.BOARD_POST_NOT_FOUND);
+		verify(post, never()).restore();
+	}
+
+	@Test
 	void likePostSucceedsWhenNotAlreadyLiked() {
 		User user = mockUser(1L, UserRole.USER);
 		BoardPost post = mockPost(10L, user, BoardStatus.ACTIVE);

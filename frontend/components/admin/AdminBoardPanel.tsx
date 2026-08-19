@@ -80,7 +80,8 @@ export default function AdminBoardPanel({ accessToken }: { accessToken: string }
       <div className="border-b border-line p-5">
         <h2 className="text-lg font-extrabold">게시판 관리</h2>
         <p className="mt-1 text-sm text-sub">
-          관리자가 숨김 처리한 게시글 목록입니다. 게시글 상세에서 "숨김 처리" 버튼으로 감출 수 있어요.
+          숨김 처리된 게시글 목록입니다. 관리자가 숨긴 글만 복원할 수 있고, 작성자가 직접 삭제한 글은
+          복원할 수 없어요.
         </p>
       </div>
 
@@ -91,6 +92,7 @@ export default function AdminBoardPanel({ accessToken }: { accessToken: string }
               <th className="px-5 py-3.5">카테고리</th>
               <th className="px-4 py-3.5">제목</th>
               <th className="px-4 py-3.5">작성자</th>
+              <th className="px-4 py-3.5">숨김 처리자</th>
               <th className="px-4 py-3.5">작성일</th>
               <th className="px-5 py-3.5 text-right">관리</th>
             </tr>
@@ -98,19 +100,19 @@ export default function AdminBoardPanel({ accessToken }: { accessToken: string }
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-sub">
+                <td colSpan={6} className="px-5 py-10 text-center text-sub">
                   목록을 불러오고 있어요.
                 </td>
               </tr>
             ) : errorMessage ? (
               <tr>
-                <td colSpan={5} role="alert" className="px-5 py-10 text-center text-danger">
+                <td colSpan={6} role="alert" className="px-5 py-10 text-center text-danger">
                   {errorMessage}
                 </td>
               </tr>
             ) : posts.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-sub">
+                <td colSpan={6} className="px-5 py-10 text-center text-sub">
                   숨김 처리된 게시글이 없어요.
                 </td>
               </tr>
@@ -120,6 +122,17 @@ export default function AdminBoardPanel({ accessToken }: { accessToken: string }
                   <td className="px-5 py-3.5 text-sub">{CATEGORY_LABEL[post.category] ?? post.category}</td>
                   <td className="max-w-[280px] truncate px-4 py-3.5 font-bold">{post.title}</td>
                   <td className="px-4 py-3.5 text-sub">{post.nickname}</td>
+                  <td className="px-4 py-3.5">
+                    {post.hiddenBy === "ADMIN" ? (
+                      <span className="rounded-full bg-[#FBEDE3] px-2.5 py-1 text-xs font-extrabold text-[#b5771a]">
+                        관리자
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-[#f0f1ea] px-2.5 py-1 text-xs font-extrabold text-[#8a8a8a]">
+                        작성자 자진 삭제
+                      </span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-sub">{formatDateTime(post.createdAt)}</td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex justify-end gap-1.5">
@@ -130,14 +143,23 @@ export default function AdminBoardPanel({ accessToken }: { accessToken: string }
                       >
                         상세 보기
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => restorePost(post.id)}
-                        disabled={restoringIds.has(post.id)}
-                        className="cursor-pointer rounded-lg border border-line bg-brand-soft px-2.5 py-1.5 text-xs font-bold text-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {restoringIds.has(post.id) ? "해제 중..." : "숨김 해제"}
-                      </button>
+                      {post.hiddenBy === "ADMIN" ? (
+                        <button
+                          type="button"
+                          onClick={() => restorePost(post.id)}
+                          disabled={restoringIds.has(post.id)}
+                          className="cursor-pointer rounded-lg border border-line bg-brand-soft px-2.5 py-1.5 text-xs font-bold text-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {restoringIds.has(post.id) ? "해제 중..." : "숨김 해제"}
+                        </button>
+                      ) : (
+                        <span
+                          title="작성자가 직접 삭제한 글은 복원할 수 없어요."
+                          className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-bold text-faint"
+                        >
+                          복원 불가
+                        </span>
+                      )}
                     </div>
                   </td>
                 </tr>
