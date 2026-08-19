@@ -24,6 +24,11 @@ import {
 
 const KEY = 'kwb_store_v1';
 
+// 새로고침 시 만료된 토큰을 재발급받는 동안 서버가 느리거나 응답이 없으면 hydrated가
+// 영원히 false로 남아 화면이 계속 로딩 상태처럼 보인다 — 이 시간을 넘기면 재발급 실패와
+// 동일하게 처리해 hydration이 항상 끝나도록 한다.
+const HYDRATION_REISSUE_TIMEOUT_MS = 5000;
+
 export interface Wallet {
   free: number;
   paid: number;
@@ -154,9 +159,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // bearer token as "no token" instead of erroring, so waiting for a 401 to trigger
       // the usual silent-refresh flow never happens there. Refresh proactively here,
       // before hydrated flips true and any page's fetch effects fire with a stale token.
+      //
+      // This round trip has no timeout of its own, so a slow/unresponsive server would leave
+      // hydrated stuck at false indefinitely — the navbar stays a gray bar and auth-gated pages
+      // render blank, which looks like "the app won't load" rather than an auth problem. Race it
+      // against a hard deadline and treat a timeout the same as a failed refresh (logged out) so
+      // hydration always completes.
       if (restored.accessToken && isAccessTokenExpired(restored.accessToken)) {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         try {
-          const res = await reissue();
+          const res = await Promise.race([
+            reissue(),
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error('reissue timed out')), HYDRATION_REISSUE_TIMEOUT_MS);
+            }),
+          ]);
           restored = {
             ...restored,
             authed: true,
@@ -171,6 +188,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           };
         } catch {
           restored = { ...restored, authed: false, accessToken: null, user: null };
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
 
