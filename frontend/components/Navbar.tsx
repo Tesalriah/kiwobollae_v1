@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore, fmt } from '@/lib/store';
 import { NotificationData, NotificationType } from '@/lib/notification-api';
 import { useUI } from '@/lib/ui';
-import { levelTitle } from '@/lib/levels';
 import Skeleton from './Skeleton';
 import { useGachaCosmetics } from '@/features/gacha/use-gacha-cosmetics';
 import GachaTitleBadge from '@/components/gacha/GachaTitleBadge';
@@ -289,9 +288,6 @@ export default function Navbar() {
                     <div className="border-b border-[#F2ECDD] px-4 py-3.5">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="text-[15px] font-bold">{state.user?.nickname ?? '게스트'}님</span>
-                        <span className="whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-extrabold text-brand-dark">
-                          Lv.{state.user?.level ?? 1} {levelTitle(state.user?.level ?? 1)}
-                        </span>
                       </div>
                       <div className="mt-1 truncate text-[12.5px] text-faint">{state.user?.email}</div>
                       {equippedTitle && (
