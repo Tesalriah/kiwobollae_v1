@@ -9,10 +9,12 @@ import static org.mockito.Mockito.verify;
 
 import com.kiwobollae.api.auth.entity.enums.UserStatus;
 import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.global.cache.UserStatusCache;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +32,7 @@ class JwtAuthenticationFilterTest {
 	);
 
 	@Mock private UserRepository userRepository;
+	@Mock private UserStatusCache userStatusCache;
 	@Mock private FilterChain filterChain;
 
 	private JwtAuthenticationFilter filter;
@@ -47,9 +50,9 @@ class JwtAuthenticationFilterTest {
 
 	@Test
 	void authenticatesWhenTokenValidAndUserActive() throws Exception {
-		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository, userStatusCache);
 		String token = jwtTokenProvider.generateAccessToken(1L, "USER");
-		given(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).willReturn(true);
+		given(userStatusCache.get(1L)).willReturn(Optional.of(UserStatus.ACTIVE));
 		HttpServletRequest request = requestWithToken(token);
 		HttpServletResponse response = mock(HttpServletResponse.class);
 
@@ -60,14 +63,32 @@ class JwtAuthenticationFilterTest {
 		verify(filterChain).doFilter(request, response);
 	}
 
+	// 캐시가 비어 있으면(캐시 미스) DB에서 상태를 조회하고, 그 결과를 다시 캐시에 채워
+	// 다음 요청부터는 DB를 타지 않도록 해야 한다.
+	@Test
+	void fallsBackToDbAndPopulatesCacheOnCacheMiss() throws Exception {
+		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository, userStatusCache);
+		String token = jwtTokenProvider.generateAccessToken(1L, "USER");
+		given(userStatusCache.get(1L)).willReturn(Optional.empty());
+		given(userRepository.findStatusById(1L)).willReturn(Optional.of(UserStatus.ACTIVE));
+		HttpServletRequest request = requestWithToken(token);
+		HttpServletResponse response = mock(HttpServletResponse.class);
+
+		filter.doFilter(request, response, filterChain);
+
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+		verify(userStatusCache).put(1L, UserStatus.ACTIVE);
+		verify(filterChain).doFilter(request, response);
+	}
+
 	// 토큰 자체는 유효해도(서명/만료 문제 없음) 발급 이후 관리자가 계정을 정지시켰다면, 이 필터가
-	// 매 요청마다 현재 DB 상태를 다시 확인해 통과시키지 않아야 한다 — 액세스 토큰 만료를 기다릴
+	// 매 요청마다 현재 상태를 다시 확인해 통과시키지 않아야 한다 — 액세스 토큰 만료를 기다릴
 	// 필요 없이 즉시 막히는 것이 이 수정의 핵심이다.
 	@Test
 	void rejectsWhenTokenValidButUserNoLongerActive() throws Exception {
-		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository, userStatusCache);
 		String token = jwtTokenProvider.generateAccessToken(1L, "USER");
-		given(userRepository.existsByIdAndStatus(1L, UserStatus.ACTIVE)).willReturn(false);
+		given(userStatusCache.get(1L)).willReturn(Optional.of(UserStatus.SUSPENDED));
 		HttpServletRequest request = requestWithToken(token);
 		HttpServletResponse response = mock(HttpServletResponse.class);
 
@@ -81,14 +102,14 @@ class JwtAuthenticationFilterTest {
 
 	@Test
 	void skipsStatusCheckWhenNoTokenPresent() throws Exception {
-		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository);
+		filter = new JwtAuthenticationFilter(jwtTokenProvider, userRepository, userStatusCache);
 		HttpServletRequest request = mock(HttpServletRequest.class);
 		HttpServletResponse response = mock(HttpServletResponse.class);
 
 		filter.doFilter(request, response, filterChain);
 
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-		verify(userRepository, never()).existsByIdAndStatus(any(), any());
+		verify(userStatusCache, never()).get(any());
 		verify(filterChain).doFilter(request, response);
 	}
 }
