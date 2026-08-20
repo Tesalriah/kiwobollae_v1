@@ -3,12 +3,14 @@ package com.kiwobollae.api.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.kiwobollae.api.auth.entity.User;
 import com.kiwobollae.api.auth.entity.enums.AuthProvider;
 import com.kiwobollae.api.auth.entity.enums.UserRole;
 import com.kiwobollae.api.auth.entity.enums.UserStatus;
 import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.global.cache.UserStatusCache;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import java.util.Optional;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class AdminUserManagementServiceTest {
 
 	@Mock private UserRepository userRepository;
+	@Mock private UserStatusCache userStatusCache;
 
 	@InjectMocks
 	private AdminUserManagementService adminUserManagementService;
@@ -47,6 +50,7 @@ class AdminUserManagementServiceTest {
 
 		assertThat(user.getStatus()).isEqualTo(UserStatus.SUSPENDED);
 		assertThat(user.getSuspendedReason()).isEqualTo("부적절한 게시글 반복 작성");
+		verify(userStatusCache).evict(1L);
 	}
 
 	@Test
@@ -91,6 +95,7 @@ class AdminUserManagementServiceTest {
 
 		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
 		assertThat(user.getSuspendedReason()).isNull();
+		verify(userStatusCache).evict(1L);
 	}
 
 	@Test
