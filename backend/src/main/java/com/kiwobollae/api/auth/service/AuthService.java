@@ -88,7 +88,6 @@ public class AuthService {
 				.phoneNumber(request.phoneNumber())
 				.provider(AuthProvider.LOCAL)
 				.role(UserRole.USER)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build();
 
@@ -151,7 +150,6 @@ public class AuthService {
 				.provider(provider)
 				.providerId(userInfo.providerId())
 				.role(UserRole.USER)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build();
 		User savedUser = userRepository.save(user);

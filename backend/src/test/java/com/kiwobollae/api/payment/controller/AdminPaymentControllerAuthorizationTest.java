@@ -474,7 +474,6 @@ class AdminPaymentControllerAuthorizationTest {
 				.name(nickname)
 				.provider(AuthProvider.LOCAL)
 				.role(role)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build());
 	}

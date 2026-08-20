@@ -559,7 +559,6 @@ class WalletServiceMySqlIntegrationTest {
 				.name("통합테스트")
 				.provider(AuthProvider.LOCAL)
 				.role(UserRole.USER)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build());
 

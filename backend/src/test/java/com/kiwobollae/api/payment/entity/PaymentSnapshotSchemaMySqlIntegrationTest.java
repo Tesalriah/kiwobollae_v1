@@ -47,7 +47,6 @@ class PaymentSnapshotSchemaMySqlIntegrationTest {
 				.name("스냅샷 스키마")
 				.provider(AuthProvider.LOCAL)
 				.role(UserRole.USER)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build());
 		ChargeProduct chargeProduct = chargeProductRepository.saveAndFlush(

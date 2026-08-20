@@ -104,7 +104,6 @@ class AuthServiceTest {
 				.provider(AuthProvider.KAKAO)
 				.providerId("kakao-provider-id")
 				.role(UserRole.USER)
-				.level(1)
 				.status(UserStatus.ACTIVE)
 				.build();
 		OAuthUserInfo userInfo = new OAuthUserInfo(
