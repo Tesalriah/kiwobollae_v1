@@ -20,14 +20,12 @@ interface AdminUserPickerProps {
 const STATUS_LABELS: Record<AdminUserStatus, string> = {
   ACTIVE: "활성",
   SUSPENDED: "정지",
-  RESTRICTED: "제한",
   WITHDRAWN: "탈퇴",
 };
 
 const STATUS_STYLES: Record<AdminUserStatus, string> = {
   ACTIVE: "bg-[#E8F3D8] text-brand-text",
   SUSPENDED: "bg-[#FBEDE3] text-[#b5771a]",
-  RESTRICTED: "bg-[#FFF3CC] text-gold-text",
   WITHDRAWN: "bg-[#f0f1ea] text-[#7a8176]",
 };
 
@@ -138,7 +136,6 @@ export default function AdminUserPicker({
           >
             <option value="ACTIVE">활성 회원</option>
             <option value="SUSPENDED">정지 회원</option>
-            <option value="RESTRICTED">제한 회원</option>
             <option value="WITHDRAWN">탈퇴 회원</option>
             <option value="">전체 상태</option>
           </select>

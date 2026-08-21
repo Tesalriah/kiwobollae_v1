@@ -16,19 +16,17 @@ import { useScrollOnPageLoad } from "./use-scroll-on-page-load";
 
 const PAGE_SIZE = 10;
 const COLUMN_COUNT = 6;
-const VALID_STATUSES: AdminUserStatus[] = ["ACTIVE", "SUSPENDED", "RESTRICTED", "WITHDRAWN"];
+const VALID_STATUSES: AdminUserStatus[] = ["ACTIVE", "SUSPENDED", "WITHDRAWN"];
 
 const STATUS_LABELS: Record<AdminUserStatus, string> = {
   ACTIVE: "활성",
   SUSPENDED: "정지",
-  RESTRICTED: "제한",
   WITHDRAWN: "탈퇴",
 };
 
 const STATUS_STYLES: Record<AdminUserStatus, string> = {
   ACTIVE: "bg-[#E8F3D8] text-brand-text",
   SUSPENDED: "bg-[#FBEDE3] text-[#b5771a]",
-  RESTRICTED: "bg-[#FFF3CC] text-gold-text",
   WITHDRAWN: "bg-[#f0f1ea] text-[#7a8176]",
 };
 
@@ -183,7 +181,10 @@ export default function AdminUserPanel({
     });
   };
 
-  const users = usersPage?.content ?? [];
+  // reportCount는 백엔드에서 페이징 쿼리와 별도로 계산돼 정렬 가능한 컬럼이 아니라
+  // (User 엔티티에 없는 파생값) 서버에 sort=reportCount로 요청할 수 없다 — 현재 페이지 안에서만
+  // 누적 신고수가 높은 순으로 보여준다.
+  const users = [...(usersPage?.content ?? [])].sort((a, b) => b.reportCount - a.reportCount);
   const totalPages = usersPage?.totalPages ?? 0;
 
   useScrollOnPageLoad(page, loading, sectionRef);
@@ -225,7 +226,6 @@ export default function AdminUserPanel({
             <option value="">전체 상태</option>
             <option value="ACTIVE">활성 회원</option>
             <option value="SUSPENDED">정지 회원</option>
-            <option value="RESTRICTED">제한 회원</option>
             <option value="WITHDRAWN">탈퇴 회원</option>
           </select>
         </div>

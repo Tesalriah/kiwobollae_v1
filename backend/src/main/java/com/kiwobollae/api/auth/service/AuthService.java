@@ -285,7 +285,7 @@ public class AuthService {
 	}
 
 	/**
-	 * Same as findById, but also rejects SUSPENDED/RESTRICTED/WITHDRAWN accounts —
+	 * Same as findById, but also rejects SUSPENDED/WITHDRAWN accounts —
 	 * an access token can outlive an admin action taken mid-session (up to its
 	 * expiry), so every /auth/me/** action re-checks status instead of trusting
 	 * "the token was valid at issue time" the way a stateless JWT alone would.
