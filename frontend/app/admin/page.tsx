@@ -28,6 +28,7 @@ import {
   adminCancelExchange,
   deliverExchange,
   ExchangeOrderData,
+  ExchangeStatus,
   getExchangesForAdmin,
   prepareExchange,
   shipExchange,
@@ -47,7 +48,7 @@ import { fmt, useStore } from "@/lib/store";
 import { couponName } from "@/lib/coupon-label";
 import { ProductCategory } from "@/lib/product-api";
 import { useUI } from "@/lib/ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminPagination from "@/components/admin/AdminPagination";
 import { useScrollOnPageLoad } from "@/components/admin/use-scroll-on-page-load";
@@ -94,6 +95,59 @@ function localMidnightIso(baseDate: Date, offsetDays: number): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T00:00:00`;
 }
 
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(date);
+}
+
+const ORDER_STATUS_OPTIONS = [
+  { key: "", label: "전체" },
+  { key: "PREPARING", label: "준비중" },
+  { key: "SHIPPING", label: "배송중" },
+  { key: "DELIVERED", label: "배송완료" },
+  { key: "PURCHASE_CONFIRMED", label: "구매확정" },
+  { key: "CANCELLED", label: "취소됨" },
+] as const;
+
+// 배송 흐름(준비중/배송중/배송완료)과 주문 자체 상태(구매확정/취소됨)를 하나의 드롭다운으로
+// 합쳐 보여주되, 실제 API 호출 시에는 어느 필드로 걸어야 하는지에 따라 나눠서 보낸다.
+function buildOrderFilters(key: string) {
+  if (!key) return undefined;
+  if (key === "PURCHASE_CONFIRMED" || key === "CANCELLED") {
+    return { status: key as "PURCHASE_CONFIRMED" | "CANCELLED" };
+  }
+  return { deliveryStatus: key as "PREPARING" | "SHIPPING" | "DELIVERED" };
+}
+
+// 완료된(배송완료/구매확정) 건만 최신순으로, 그 외에는 아직 처리해야 할 오래된 것부터 보이게 한다.
+function orderSort(filterKey: string) {
+  return filterKey === "DELIVERED" || filterKey === "PURCHASE_CONFIRMED"
+    ? "orderedAt,DESC"
+    : "orderedAt,ASC";
+}
+function exchangeSort(filterKey: string) {
+  return filterKey === "DELIVERED" ? "requestedAt,DESC" : "requestedAt,ASC";
+}
+
+const EXCHANGE_STATUS_OPTIONS = [
+  { key: "", label: "전체" },
+  { key: "REQUESTED", label: "신청됨" },
+  { key: "PREPARING", label: "준비중" },
+  { key: "SHIPPING", label: "배송중" },
+  { key: "DELIVERED", label: "배송완료" },
+  { key: "CANCELLED", label: "취소됨" },
+] as const;
+
+const ORDER_STATUS_PRIORITY: Record<string, number> = {
+  PREPARING: 0, SHIPPING: 1, DELIVERED: 2, PURCHASE_CONFIRMED: 3, CANCELLED: 4,
+};
+const EXCHANGE_STATUS_PRIORITY: Record<string, number> = {
+  REQUESTED: 0, PREPARING: 1, SHIPPING: 2, DELIVERED: 3, CANCELLED: 4,
+};
+
 function formatDelta(diff: number): string {
   if (diff > 0) return `▲ 어제 대비 +${diff}`;
   if (diff < 0) return `▼ 어제 대비 ${diff}`;
@@ -108,6 +162,9 @@ const CHIP = "rounded-full px-2.5 py-1 text-xs font-extrabold";
 const BTN_SOFT =
   "cursor-pointer rounded-[9px] bg-brand-soft px-[13px] py-[7px] text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white";
 const ADMIN_PAGE_SIZE = 10;
+// "전체" 조회에서 상태 우선순위대로 전체 정렬하려면 서버가 한 번에 다 내려줘야 한다 —
+// 서버는 필드 하나로만 정렬할 수 있어 커스텀 상태 순서를 페이지 단위로는 만들 수 없다.
+const ADMIN_ALL_SIZE = 2000;
 
 const PRODUCT_CATEGORY_LABEL: Record<ProductCategory, string> = {
   KIT: "재배 키트",
@@ -296,6 +353,7 @@ export default function Admin({
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState("");
   const [ordersTotalPages, setOrdersTotalPages] = useState(0);
+  const [orderStatusFilter, setOrderStatusFilter] = useState("");
 
   useEffect(() => {
     if (!hydrated || !state.accessToken) return;
@@ -307,16 +365,31 @@ export default function Admin({
 
     getOrdersForAdmin(
       accessToken,
-      undefined,
-      adminPage,
-      ADMIN_PAGE_SIZE,
+      buildOrderFilters(orderStatusFilter),
+      orderStatusFilter ? adminPage : 0,
+      orderStatusFilter ? ADMIN_PAGE_SIZE : ADMIN_ALL_SIZE,
       controller.signal,
+      orderSort(orderStatusFilter),
     )
       .then((page) => {
-        setOrders(page.content.map((detail) => detail.order));
-        setOrdersTotalPages(page.totalPages);
+        // deliveryStatus로만 거르면 취소된 주문도 배송상태(취소 시점 값)가 그대로 남아 있어
+        // 함께 걸려 나온다 — "준비중/배송중/배송완료"를 볼 때는 취소된 건은 "취소됨" 필터에서만
+        // 보이게 여기서 걸러낸다. 백엔드가 status!=CANCELLED 같은 제외 조건은 지원하지 않는다.
+        const isDeliveryStatusFilter =
+          orderStatusFilter === "PREPARING" ||
+          orderStatusFilter === "SHIPPING" ||
+          orderStatusFilter === "DELIVERED";
+        const content = isDeliveryStatusFilter
+          ? page.content.filter((detail) => detail.order.status !== "CANCELLED")
+          : page.content;
+        setOrders(content.map((detail) => detail.order));
+        setOrdersTotalPages(
+          orderStatusFilter
+            ? page.totalPages
+            : Math.ceil(page.totalElements / ADMIN_PAGE_SIZE),
+        );
         const map: Record<number, OrderItemData[]> = {};
-        page.content.forEach((detail) => {
+        content.forEach((detail) => {
           map[detail.order.id] = detail.items;
         });
         setOrderItemsById(map);
@@ -339,11 +412,12 @@ export default function Admin({
       });
 
     return () => controller.abort();
-  }, [adminPage, hydrated, state.accessToken]);
+  }, [adminPage, orderStatusFilter, hydrated, state.accessToken]);
   const [exchanges, setExchanges] = useState<ExchangeOrderData[]>([]);
   const [exchangesLoading, setExchangesLoading] = useState(true);
   const [exchangesError, setExchangesError] = useState("");
   const [exchangesTotalPages, setExchangesTotalPages] = useState(0);
+  const [exchangeStatusFilter, setExchangeStatusFilter] = useState("");
 
   useEffect(() => {
     if (!hydrated || !state.accessToken) return;
@@ -355,14 +429,19 @@ export default function Admin({
 
     getExchangesForAdmin(
       accessToken,
-      undefined,
-      adminPage,
-      ADMIN_PAGE_SIZE,
+      (exchangeStatusFilter || undefined) as ExchangeStatus | undefined,
+      exchangeStatusFilter ? adminPage : 0,
+      exchangeStatusFilter ? ADMIN_PAGE_SIZE : ADMIN_ALL_SIZE,
       controller.signal,
+      exchangeSort(exchangeStatusFilter),
     )
       .then((page) => {
         setExchanges(page.content);
-        setExchangesTotalPages(page.totalPages);
+        setExchangesTotalPages(
+          exchangeStatusFilter
+            ? page.totalPages
+            : Math.ceil(page.totalElements / ADMIN_PAGE_SIZE),
+        );
       })
       .catch((requestError) => {
         if (
@@ -382,7 +461,7 @@ export default function Admin({
       });
 
     return () => controller.abort();
-  }, [adminPage, hydrated, state.accessToken]);
+  }, [adminPage, exchangeStatusFilter, hydrated, state.accessToken]);
 
   // SEEDLING 상품 종 이름 입력용 자동완성 — 이미 재배가이드가 생성된 종 이름만 검색된다.
   const [productSpeciesSuggestions, setProductSpeciesSuggestions] = useState<
@@ -399,6 +478,49 @@ export default function Admin({
   // AdminPagination의 onChange에서 즉시 스크롤한다.
   useScrollOnPageLoad(adminPage, ordersLoading, ordersSectionRef, tab === "orders");
   useScrollOnPageLoad(adminPage, exchangesLoading, exchangesSectionRef, tab === "exchanges");
+
+  // "전체" 조회일 때는 상태별로 준비중→배송중→배송완료→구매확정→취소됨 순서로 묶어서
+  // 전체 데이터를 정렬한 뒤, 그 정렬된 전체 목록을 여기서 직접 페이지 단위로 잘라 보여준다
+  // (서버는 필드 하나로만 정렬할 수 있어 커스텀 상태 순서로는 페이지네이션을 못 해준다 —
+  // 그래서 "전체"일 때만 한 번에 다 받아와 클라이언트에서 정렬·페이지네이션한다).
+  // 배송완료/구매확정은 이미 끝난 건이라 최신순, 나머지는 오래된순이 되도록 그룹 안에서
+  // 필요한 그룹만 뒤집는다 — 기본 조회 자체가 orderedAt 오래된순이라 뒤집으면 최신순이 된다.
+  const sortedAllOrders = useMemo(() => {
+    if (orderStatusFilter) return orders;
+    const buckets: Record<string, OrderData[]> = {
+      PREPARING: [], SHIPPING: [], DELIVERED: [], PURCHASE_CONFIRMED: [], CANCELLED: [],
+    };
+    orders.forEach((o) => {
+      const key = o.status === "CANCELLED" || o.status === "PURCHASE_CONFIRMED" ? o.status : o.deliveryStatus;
+      buckets[key].push(o);
+    });
+    buckets.DELIVERED.reverse();
+    buckets.PURCHASE_CONFIRMED.reverse();
+    return Object.keys(ORDER_STATUS_PRIORITY)
+      .sort((a, b) => ORDER_STATUS_PRIORITY[a] - ORDER_STATUS_PRIORITY[b])
+      .flatMap((key) => buckets[key]);
+  }, [orders, orderStatusFilter]);
+
+  const displayOrders = orderStatusFilter
+    ? sortedAllOrders
+    : sortedAllOrders.slice(adminPage * ADMIN_PAGE_SIZE, (adminPage + 1) * ADMIN_PAGE_SIZE);
+
+  const sortedAllExchanges = useMemo(() => {
+    if (exchangeStatusFilter) return exchanges;
+    const buckets: Record<string, ExchangeOrderData[]> = {
+      REQUESTED: [], PREPARING: [], SHIPPING: [], DELIVERED: [], CANCELLED: [],
+    };
+    exchanges.forEach((x) => buckets[x.status].push(x));
+    buckets.DELIVERED.reverse();
+    return Object.keys(EXCHANGE_STATUS_PRIORITY)
+      .sort((a, b) => EXCHANGE_STATUS_PRIORITY[a] - EXCHANGE_STATUS_PRIORITY[b])
+      .flatMap((key) => buckets[key]);
+  }, [exchanges, exchangeStatusFilter]);
+
+  const displayExchanges = exchangeStatusFilter
+    ? sortedAllExchanges
+    : sortedAllExchanges.slice(adminPage * ADMIN_PAGE_SIZE, (adminPage + 1) * ADMIN_PAGE_SIZE);
+
   const [productSubmitting, setProductSubmitting] = useState(false);
   const [productBusyId, setProductBusyId] = useState<number | null>(null);
   const [stockDeltas, setStockDeltas] = useState<Record<number, string>>({});
@@ -836,9 +958,29 @@ export default function Admin({
 
       {tab === "orders" && (
         <div ref={ordersSectionRef} className={PANEL}>
-          <div className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${HEAD}`}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#f2f3ec] px-[18px] py-3">
+            <label className="text-xs font-bold text-sub">
+              상태
+              <select
+                value={orderStatusFilter}
+                onChange={(event) => {
+                  setOrderStatusFilter(event.target.value);
+                  changeAdminPage(0);
+                }}
+                className="ml-2 cursor-pointer rounded-lg border-[1.5px] border-line bg-white px-2.5 py-1.5 text-xs font-bold text-ink outline-none focus:border-brand"
+              >
+                {ORDER_STATUS_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className={`grid grid-cols-[.9fr_1fr_1.1fr_.9fr_1fr_1.4fr] ${HEAD}`}>
             <div>주문번호</div>
             <div>고객</div>
+            <div>주문일시</div>
             <div>금액</div>
             <div>배송상태</div>
             <div className="text-right">처리</div>
@@ -856,7 +998,7 @@ export default function Admin({
               주문이 없어요.
             </div>
           ) : (
-            orders.map((o) => {
+            displayOrders.map((o) => {
               const m = delMeta[o.deliveryStatus];
               const cancelled = o.status === "CANCELLED";
               const advanceable =
@@ -866,10 +1008,11 @@ export default function Admin({
               return (
                 <div key={o.id} className="border-t border-[#f2f3ec]">
                   <div
-                    className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${ROW} border-t-0 pb-2`}
+                    className={`grid grid-cols-[.9fr_1fr_1.1fr_.9fr_1fr_1.4fr] ${ROW} border-t-0 pb-2`}
                   >
                     <div className="font-bold">주문 #{o.id}</div>
                     <div className="text-[#6d7a68]">{o.receiverName}</div>
+                    <div className="text-[12.5px] text-sub">{formatDateTime(o.orderedAt)}</div>
                     <div className="font-bold text-gold-text">
                       {fmt(o.totalPoint)}P
                     </div>
@@ -945,9 +1088,29 @@ export default function Admin({
 
       {tab === "exchanges" && (
         <div ref={exchangesSectionRef} className={PANEL}>
-          <div className={`grid grid-cols-[1.3fr_1fr_1fr_1.4fr] ${HEAD}`}>
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#f2f3ec] px-[18px] py-3">
+            <label className="text-xs font-bold text-sub">
+              상태
+              <select
+                value={exchangeStatusFilter}
+                onChange={(event) => {
+                  setExchangeStatusFilter(event.target.value);
+                  changeAdminPage(0);
+                }}
+                className="ml-2 cursor-pointer rounded-lg border-[1.5px] border-line bg-white px-2.5 py-1.5 text-xs font-bold text-ink outline-none focus:border-brand"
+              >
+                {EXCHANGE_STATUS_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className={`grid grid-cols-[1.1fr_.9fr_1.1fr_.8fr_1.4fr] ${HEAD}`}>
             <div>실물상품</div>
             <div>쿠폰</div>
+            <div>신청일시</div>
             <div>상태</div>
             <div className="text-right">처리</div>
           </div>
@@ -964,43 +1127,50 @@ export default function Admin({
               교환 신청이 없어요.
             </div>
           ) : (
-            exchanges.map((x) => {
+            displayExchanges.map((x) => {
               const m = exMeta[x.status];
               const advanceable =
                 x.status === "REQUESTED" ||
                 x.status === "PREPARING" ||
                 x.status === "SHIPPING";
               return (
-                <div
-                  key={x.id}
-                  className={`grid grid-cols-[1.3fr_1fr_1fr_1.4fr] ${ROW}`}
-                >
-                  <div className="font-bold">{x.exchangeProductName}</div>
-                  <div className="text-[#6d7a68]">
-                    {couponName(x.cardName)} {x.usedCardCount}장
+                <div key={x.id} className="border-t border-[#f2f3ec]">
+                  <div
+                    className={`grid grid-cols-[1.1fr_.9fr_1.1fr_.8fr_1.4fr] ${ROW} border-t-0 pb-2`}
+                  >
+                    <div className="font-bold">{x.exchangeProductName}</div>
+                    <div className="text-[#6d7a68]">
+                      {couponName(x.cardName)} {x.usedCardCount}장
+                    </div>
+                    <div className="text-[12.5px] text-sub">{formatDateTime(x.requestedAt)}</div>
+                    <div>
+                      <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
+                    </div>
+                    <div className="flex justify-end gap-1.5">
+                      {advanceable && (
+                        <button
+                          type="button"
+                          onClick={() => advEx(x)}
+                          className="cursor-pointer rounded-[9px] bg-brand-soft px-3 py-[7px] text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white"
+                        >
+                          {m[2]}
+                        </button>
+                      )}
+                      {x.status === "REQUESTED" && (
+                        <button
+                          type="button"
+                          onClick={() => cancelEx(x.id)}
+                          className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
+                        >
+                          취소
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <span className={`${CHIP} ${m[1]}`}>{m[0]}</span>
-                  </div>
-                  <div className="flex justify-end gap-1.5">
-                    {advanceable && (
-                      <button
-                        type="button"
-                        onClick={() => advEx(x)}
-                        className="cursor-pointer rounded-[9px] bg-brand-soft px-3 py-[7px] text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white"
-                      >
-                        {m[2]}
-                      </button>
-                    )}
-                    {x.status === "REQUESTED" && (
-                      <button
-                        type="button"
-                        onClick={() => cancelEx(x.id)}
-                        className="cursor-pointer rounded-[9px] border-[1.5px] border-[#e8bdad] bg-white px-3 py-[7px] text-[13px] font-bold text-[#b5502f] transition-colors duration-150 hover:bg-danger-soft hover:border-[#e0a488]"
-                      >
-                        취소
-                      </button>
-                    )}
+                  <div className="px-[18px] pb-3.5 text-[12.5px] text-sub">
+                    {x.receiverName} · {formatPhone(x.receiverPhone)} ·{" "}
+                    {x.zipCode && `[${x.zipCode}] `}
+                    {x.address} {x.addressDetail}
                   </div>
                 </div>
               );

@@ -9,13 +9,19 @@ import {
   InquiryStatus,
 } from "@/lib/inquiry-api";
 import { useUI } from "@/lib/ui";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useAdminPaginatedList } from "./use-admin-paginated-list";
 import AdminPagination from "./AdminPagination";
 import { useScrollOnPageLoad } from "./use-scroll-on-page-load";
 
 const PAGE_SIZE = 10;
 const COLUMN_COUNT = 6;
+const ADMIN_ALL_SIZE = 2000;
+
+const INQUIRY_STATUS_PRIORITY: Record<InquiryStatus, number> = {
+  OPEN: 0,
+  ANSWERED: 1,
+};
 
 const CAT: Record<InquiryCategory, string> = {
   PAYMENT: "결제",
@@ -53,10 +59,24 @@ export default function AdminInquiryPanel({
   const [answerContent, setAnswerContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // 답변완료 문의는 이미 끝난 건이라 최신순으로, 그 외(대기 등)는 아직 답변해야 할
+  // 오래된 문의가 먼저 보이도록 오래된순으로 조회한다.
+  const inquirySort = status === "ANSWERED" ? "createdAt,DESC" : "createdAt,ASC";
+
+  // "전체" 조회는 대기→답변완료 순서로 전체를 재정렬해야 하는데, 서버는 필드 하나로만
+  // 정렬할 수 있어 페이지 단위로는 커스텀 순서를 만들 수 없다 — 그래서 이때만 한 번에 다
+  // 받아와 아래에서 클라이언트가 직접 정렬·페이지네이션한다.
   const fetchPage = useCallback(
     (page: number, signal?: AbortSignal) =>
-      getInquiriesForAdmin(accessToken, status || undefined, page, PAGE_SIZE, signal),
-    [accessToken, status],
+      getInquiriesForAdmin(
+        accessToken,
+        status || undefined,
+        status ? page : 0,
+        status ? PAGE_SIZE : ADMIN_ALL_SIZE,
+        signal,
+        inquirySort,
+      ),
+    [accessToken, status, inquirySort],
   );
   const {
     page,
@@ -70,6 +90,17 @@ export default function AdminInquiryPanel({
   } = useAdminPaginatedList(fetchPage, "문의 목록을 불러오지 못했어요.");
 
   useScrollOnPageLoad(page, loading, sectionRef);
+
+  const sortedAllInquiries = useMemo(() => {
+    if (status) return inquiries;
+    return [...inquiries].sort(
+      (a, b) => INQUIRY_STATUS_PRIORITY[a.status] - INQUIRY_STATUS_PRIORITY[b.status],
+    );
+  }, [inquiries, status]);
+  const displayInquiries = status
+    ? sortedAllInquiries
+    : sortedAllInquiries.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const displayTotalPages = status ? totalPages : Math.ceil(totalElements / PAGE_SIZE);
 
   const changeStatus = (next: InquiryStatus | "") => {
     setStatus(next);
@@ -178,7 +209,7 @@ export default function AdminInquiryPanel({
                 </td>
               </tr>
             ) : (
-              inquiries.map((inquiry) => {
+              displayInquiries.map((inquiry) => {
                 const st = STAT[inquiry.status];
                 return (
                   <tr key={inquiry.id} className="border-t border-[#f2f3ec]">
@@ -218,7 +249,7 @@ export default function AdminInquiryPanel({
 
       <div className="flex flex-col items-center gap-3 border-t border-line px-5 pt-3.5 pb-5 text-sm sm:flex-row sm:justify-between">
         <span className="text-sub">총 {totalElements}건</span>
-        <AdminPagination page={page} totalPages={totalPages} onChange={setPage} />
+        <AdminPagination page={page} totalPages={displayTotalPages} onChange={setPage} />
       </div>
 
       {selected && (
