@@ -341,7 +341,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // 메인페이지 "교환 가능한 쿠폰이 N종 있어요" 배너용. 로그인 직후/새로고침 시점엔
   // 카드 구매·가챠 등을 거치지 않아 하드코딩 기본값이 그대로 남는다 — 여기서 실제
-  // 서버 값으로 채운다. /cards 페이지의 "교환 가능 🎉" 배지와 동일한 기준(보유 수량
+  // 서버 값으로 채운다. /cards 페이지의 "교환 가능" 배지와 동일한 기준(보유 수량
   // 충족 + 교환 상품 재고 있음)을 써서, 배너를 보고 들어갔다가 품절만 보는 걸 막는다.
   const refreshReadyCards = useCallback(async () => {
     const requestId = ++readyCardsRequestId.current;

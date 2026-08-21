@@ -475,7 +475,7 @@ export default function MyPage() {
   const displayEmail = profile?.email ?? state.user?.email ?? "";
 
   return (
-    <div className="container max-w-[960px]">
+    <div className="container">
       <div className="mb-6 flex flex-wrap items-center gap-[18px] rounded-[20px] bg-white p-6 shadow-card">
         <ProfileCosmeticFrame
           borderCode={equippedBorder?.code}
@@ -586,7 +586,7 @@ export default function MyPage() {
                   {nickname !== originalNickname &&
                   nicknameChecked &&
                   nicknameAvailable
-                    ? "사용가능 ✅"
+                    ? "사용가능"
                     : "중복확인"}
                 </button>
               </div>
