@@ -15,6 +15,11 @@ import {
 import { useUI } from "@/lib/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAdminPaginatedList } from "./use-admin-paginated-list";
+import AdminPagination from "./AdminPagination";
+import { useScrollOnPageLoad } from "./use-scroll-on-page-load";
+
+const PAGE_SIZE = 10;
+const COLUMN_COUNT = 6;
 
 export interface AdminReportTargetUserFilter {
   id: number;
@@ -79,10 +84,11 @@ export default function AdminReportPanel({
   // 응답할 수 있다 — requestId로 가장 최근에 연 신고의 응답인지 확인해 뒤처진 응답이
   // 엉뚱한 신고의 미리보기를 덮어쓰지 않도록 막는다.
   const previewRequestId = useRef(0);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const fetchPage = useCallback(
     (page: number, signal?: AbortSignal) =>
-      getReportsForAdmin(accessToken, status || undefined, page, 20, signal, targetUser?.id),
+      getReportsForAdmin(accessToken, status || undefined, page, PAGE_SIZE, signal, targetUser?.id),
     [accessToken, status, targetUser?.id],
   );
   const {
@@ -95,6 +101,8 @@ export default function AdminReportPanel({
     errorMessage,
     reload,
   } = useAdminPaginatedList(fetchPage, "신고 목록을 불러오지 못했어요.");
+
+  useScrollOnPageLoad(page, loading, sectionRef);
 
   // 유저 관리 탭에서 다른 유저의 누적 신고수를 눌러 targetUser가 바뀌면(패널이 이미 열려 있는
   // 상태여도) 1페이지부터 다시 보여준다.
@@ -189,7 +197,7 @@ export default function AdminReportPanel({
   };
 
   return (
-    <section className="overflow-hidden rounded-[18px] bg-white shadow-card">
+    <section ref={sectionRef} className="overflow-hidden rounded-[18px] bg-white shadow-card">
       <div className="border-b border-line p-5">
         <h2 className="text-lg font-extrabold">신고 관리</h2>
         <p className="mt-1 text-sm text-sub">
@@ -248,16 +256,16 @@ export default function AdminReportPanel({
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && reports.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sub">
-                  신고 목록을 불러오고 있어요.
+                <td colSpan={COLUMN_COUNT} className="px-5 py-10 text-center text-sub">
+                  조건에 맞는 신고 내역을 불러오고 있어요.
                 </td>
               </tr>
             ) : errorMessage ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={COLUMN_COUNT}
                   role="alert"
                   className="px-5 py-10 text-center text-danger"
                 >
@@ -266,7 +274,7 @@ export default function AdminReportPanel({
               </tr>
             ) : reports.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sub">
+                <td colSpan={COLUMN_COUNT} className="px-5 py-10 text-center text-sub">
                   조건에 맞는 신고가 없어요.
                 </td>
               </tr>
@@ -322,29 +330,9 @@ export default function AdminReportPanel({
         </table>
       </div>
 
-      <div className="flex items-center justify-between border-t border-line px-5 py-3.5 text-sm">
+      <div className="flex flex-col items-center gap-3 border-t border-line px-5 pt-3.5 pb-5 text-sm sm:flex-row sm:justify-between">
         <span className="text-sub">총 {totalElements}건</span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((current) => Math.max(0, current - 1))}
-            disabled={page === 0 || loading}
-            className="rounded-lg border border-line px-3 py-1.5 font-bold text-sub disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            이전
-          </button>
-          <span className="min-w-[64px] text-center font-bold">
-            {totalPages === 0 ? 0 : page + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((current) => current + 1)}
-            disabled={loading || totalPages === 0 || page + 1 >= totalPages}
-            className="rounded-lg border border-line px-3 py-1.5 font-bold text-sub disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            다음
-          </button>
-        </div>
+        <AdminPagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
 
       {selected && (

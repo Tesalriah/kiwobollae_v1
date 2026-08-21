@@ -47,8 +47,10 @@ import { fmt, useStore } from "@/lib/store";
 import { couponName } from "@/lib/coupon-label";
 import { ProductCategory } from "@/lib/product-api";
 import { useUI } from "@/lib/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import AdminPagination from "@/components/admin/AdminPagination";
+import { useScrollOnPageLoad } from "@/components/admin/use-scroll-on-page-load";
 
 const CANCEL_REASON_OPTIONS = [
   "품절",
@@ -107,40 +109,6 @@ const BTN_SOFT =
   "cursor-pointer rounded-[9px] bg-brand-soft px-[13px] py-[7px] text-[13px] font-bold text-brand-dark transition-colors duration-150 hover:bg-brand hover:text-white";
 const ADMIN_PAGE_SIZE = 10;
 
-function AdminPagination({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (page: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex items-center justify-center gap-3 border-t border-line px-4 py-4">
-      <button
-        type="button"
-        disabled={page <= 0}
-        onClick={() => onChange(page - 1)}
-        className="rounded-xl border border-line px-4 py-2 text-sm font-bold disabled:opacity-40"
-      >
-        이전
-      </button>
-      <span className="text-sm font-bold text-sub">
-        {page + 1} / {totalPages}
-      </span>
-      <button
-        type="button"
-        disabled={page + 1 >= totalPages}
-        onClick={() => onChange(page + 1)}
-        className="rounded-xl border border-line px-4 py-2 text-sm font-bold disabled:opacity-40"
-      >
-        다음
-      </button>
-    </div>
-  );
-}
 const PRODUCT_CATEGORY_LABEL: Record<ProductCategory, string> = {
   KIT: "재배 키트",
   SEEDLING: "모종",
@@ -318,6 +286,9 @@ export default function Admin({
       tab: "reports",
     },
   ];
+  const ordersSectionRef = useRef<HTMLDivElement>(null);
+  const exchangesSectionRef = useRef<HTMLDivElement>(null);
+  const productsSectionRef = useRef<HTMLDivElement>(null);
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [orderItemsById, setOrderItemsById] = useState<
     Record<number, OrderItemData[]>
@@ -421,6 +392,13 @@ export default function Admin({
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState("");
+
+  // 주문/교환은 페이지마다 실제로 서버에 다시 조회하므로 응답이 온 뒤(loading===false)에
+  // 스크롤한다. 상품은 전체를 한 번에 불러온 뒤 화면에서만 나눠 보여줘서(재요청 없음)
+  // productsLoading이 페이지 전환에 반응하지 않는다 — 그래서 상품 목록만 아래
+  // AdminPagination의 onChange에서 즉시 스크롤한다.
+  useScrollOnPageLoad(adminPage, ordersLoading, ordersSectionRef, tab === "orders");
+  useScrollOnPageLoad(adminPage, exchangesLoading, exchangesSectionRef, tab === "exchanges");
   const [productSubmitting, setProductSubmitting] = useState(false);
   const [productBusyId, setProductBusyId] = useState<number | null>(null);
   const [stockDeltas, setStockDeltas] = useState<Record<number, string>>({});
@@ -498,7 +476,7 @@ export default function Admin({
         updated = await deliverOrderForAdmin(o.id, state.accessToken);
       else return;
       setOrders((prev) => prev.map((p) => (p.id === o.id ? updated : p)));
-      showToast("배송 상태를 업데이트했어요. 고객에게 알림이 발송돼요 📦");
+      showToast("배송 상태를 업데이트했어요. 고객에게 알림이 발송돼요");
     } catch (requestError) {
       showToast(
         requestError instanceof ApiError
@@ -569,7 +547,7 @@ export default function Admin({
         updated = await deliverExchange(x.id, state.accessToken);
       else return;
       setExchanges((prev) => prev.map((e) => (e.id === x.id ? updated : e)));
-      showToast("교환 상태를 업데이트했어요 🍉");
+      showToast("교환 상태를 업데이트했어요");
     } catch (requestError) {
       showToast(
         requestError instanceof ApiError
@@ -857,7 +835,7 @@ export default function Admin({
       </div>
 
       {tab === "orders" && (
-        <div className={PANEL}>
+        <div ref={ordersSectionRef} className={PANEL}>
           <div className={`grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr] ${HEAD}`}>
             <div>주문번호</div>
             <div>고객</div>
@@ -865,9 +843,9 @@ export default function Admin({
             <div>배송상태</div>
             <div className="text-right">처리</div>
           </div>
-          {ordersLoading ? (
+          {ordersLoading && orders.length === 0 ? (
             <div className="px-[18px] py-10 text-center text-sm text-sub">
-              주문을 불러오고 있어요 🌱
+              주문 내역을 불러오고 있어요.
             </div>
           ) : ordersError ? (
             <div className="px-[18px] py-10 text-center text-sm text-sub">
@@ -955,25 +933,27 @@ export default function Admin({
               );
             })
           )}
-          <AdminPagination
-            page={adminPage}
-            totalPages={ordersTotalPages}
-            onChange={changeAdminPage}
-          />
+          <div className="border-t border-line px-4 pt-4 pb-6">
+            <AdminPagination
+              page={adminPage}
+              totalPages={ordersTotalPages}
+              onChange={changeAdminPage}
+            />
+          </div>
         </div>
       )}
 
       {tab === "exchanges" && (
-        <div className={PANEL}>
+        <div ref={exchangesSectionRef} className={PANEL}>
           <div className={`grid grid-cols-[1.3fr_1fr_1fr_1.4fr] ${HEAD}`}>
             <div>실물상품</div>
             <div>쿠폰</div>
             <div>상태</div>
             <div className="text-right">처리</div>
           </div>
-          {exchangesLoading ? (
+          {exchangesLoading && exchanges.length === 0 ? (
             <div className="px-[18px] py-10 text-center text-sm text-sub">
-              교환 신청을 불러오고 있어요 🍉
+              교환 신청 내역을 불러오고 있어요.
             </div>
           ) : exchangesError ? (
             <div className="px-[18px] py-10 text-center text-sm text-sub">
@@ -1026,11 +1006,13 @@ export default function Admin({
               );
             })
           )}
-          <AdminPagination
-            page={adminPage}
-            totalPages={exchangesTotalPages}
-            onChange={changeAdminPage}
-          />
+          <div className="border-t border-line px-4 pt-4 pb-6">
+            <AdminPagination
+              page={adminPage}
+              totalPages={exchangesTotalPages}
+              onChange={changeAdminPage}
+            />
+          </div>
         </div>
       )}
 
@@ -1227,7 +1209,7 @@ export default function Admin({
             </button>
           </div>
 
-          <div className={`${PANEL} overflow-x-auto`}>
+          <div ref={productsSectionRef} className={`${PANEL} overflow-x-auto`}>
             <div className="min-w-[920px]">
               <div
                 className={`grid grid-cols-[1.7fr_.8fr_.8fr_2.3fr_.7fr_1.4fr] ${HEAD}`}
@@ -1239,9 +1221,9 @@ export default function Admin({
                 <div>노출</div>
                 <div className="text-right">관리</div>
               </div>
-              {productsLoading ? (
+              {productsLoading && products.length === 0 ? (
                 <div className="px-5 py-12 text-center text-sm text-sub">
-                  상품을 불러오고 있어요.
+                  상품 목록을 불러오고 있어요.
                 </div>
               ) : productsError ? (
                 <div className="px-5 py-12 text-center text-sm text-danger">
@@ -1273,8 +1255,8 @@ export default function Admin({
                               }}
                             />
                           ) : (
-                            <span className="grid h-10 w-10 flex-none place-items-center rounded-lg bg-brand-soft text-xl">
-                              {product.category === "GACHA_PACK" ? "🎴" : "🌱"}
+                            <span className="material-symbols-outlined grid h-10 w-10 flex-none place-items-center rounded-lg bg-brand-soft text-xl">
+                              {product.category === "GACHA_PACK" ? "style" : "potted_plant"}
                             </span>
                           )}
                           <div className="min-w-0">
@@ -1402,11 +1384,18 @@ export default function Admin({
                     );
                   })
               )}
-              <AdminPagination
-                page={adminPage}
-                totalPages={Math.ceil(products.length / ADMIN_PAGE_SIZE)}
-                onChange={changeAdminPage}
-              />
+              <div className="border-t border-line px-4 pt-4 pb-6">
+                <AdminPagination
+                  page={adminPage}
+                  totalPages={Math.ceil(products.length / ADMIN_PAGE_SIZE)}
+                  onChange={(next) => {
+                    changeAdminPage(next);
+                    if (typeof productsSectionRef.current?.scrollIntoView === "function") {
+                      productsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -9,8 +9,13 @@ import {
   InquiryStatus,
 } from "@/lib/inquiry-api";
 import { useUI } from "@/lib/ui";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAdminPaginatedList } from "./use-admin-paginated-list";
+import AdminPagination from "./AdminPagination";
+import { useScrollOnPageLoad } from "./use-scroll-on-page-load";
+
+const PAGE_SIZE = 10;
+const COLUMN_COUNT = 6;
 
 const CAT: Record<InquiryCategory, string> = {
   PAYMENT: "결제",
@@ -42,6 +47,7 @@ export default function AdminInquiryPanel({
   accessToken: string;
 }) {
   const { showToast } = useUI();
+  const sectionRef = useRef<HTMLElement>(null);
   const [status, setStatus] = useState<InquiryStatus | "">("");
   const [selected, setSelected] = useState<InquiryData | null>(null);
   const [answerContent, setAnswerContent] = useState("");
@@ -49,7 +55,7 @@ export default function AdminInquiryPanel({
 
   const fetchPage = useCallback(
     (page: number, signal?: AbortSignal) =>
-      getInquiriesForAdmin(accessToken, status || undefined, page, 20, signal),
+      getInquiriesForAdmin(accessToken, status || undefined, page, PAGE_SIZE, signal),
     [accessToken, status],
   );
   const {
@@ -62,6 +68,8 @@ export default function AdminInquiryPanel({
     errorMessage,
     reload,
   } = useAdminPaginatedList(fetchPage, "문의 목록을 불러오지 못했어요.");
+
+  useScrollOnPageLoad(page, loading, sectionRef);
 
   const changeStatus = (next: InquiryStatus | "") => {
     setStatus(next);
@@ -103,7 +111,7 @@ export default function AdminInquiryPanel({
   };
 
   return (
-    <section className="overflow-hidden rounded-[18px] bg-white shadow-card">
+    <section ref={sectionRef} className="overflow-hidden rounded-[18px] bg-white shadow-card">
       <div className="border-b border-line p-5">
         <h2 className="text-lg font-extrabold">문의 관리</h2>
         <p className="mt-1 text-sm text-sub">
@@ -147,16 +155,16 @@ export default function AdminInquiryPanel({
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && inquiries.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sub">
-                  문의 목록을 불러오고 있어요.
+                <td colSpan={COLUMN_COUNT} className="px-5 py-10 text-center text-sub">
+                  조건에 맞는 문의를 불러오고 있어요.
                 </td>
               </tr>
             ) : errorMessage ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={COLUMN_COUNT}
                   role="alert"
                   className="px-5 py-10 text-center text-danger"
                 >
@@ -165,7 +173,7 @@ export default function AdminInquiryPanel({
               </tr>
             ) : inquiries.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-sub">
+                <td colSpan={COLUMN_COUNT} className="px-5 py-10 text-center text-sub">
                   조건에 맞는 문의가 없어요.
                 </td>
               </tr>
@@ -208,29 +216,9 @@ export default function AdminInquiryPanel({
         </table>
       </div>
 
-      <div className="flex items-center justify-between border-t border-line px-5 py-3.5 text-sm">
+      <div className="flex flex-col items-center gap-3 border-t border-line px-5 pt-3.5 pb-5 text-sm sm:flex-row sm:justify-between">
         <span className="text-sub">총 {totalElements}건</span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((current) => Math.max(0, current - 1))}
-            disabled={page === 0 || loading}
-            className="rounded-lg border border-line px-3 py-1.5 font-bold text-sub disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            이전
-          </button>
-          <span className="min-w-[64px] text-center font-bold">
-            {totalPages === 0 ? 0 : page + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((current) => current + 1)}
-            disabled={loading || totalPages === 0 || page + 1 >= totalPages}
-            className="rounded-lg border border-line px-3 py-1.5 font-bold text-sub disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            다음
-          </button>
-        </div>
+        <AdminPagination page={page} totalPages={totalPages} onChange={setPage} />
       </div>
 
       {selected && (

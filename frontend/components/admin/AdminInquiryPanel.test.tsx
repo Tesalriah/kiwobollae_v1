@@ -138,7 +138,7 @@ describe("AdminInquiryPanel", () => {
     expect(await screen.findByText("결제가 안 돼요")).toBeInTheDocument();
     expect(screen.queryByText("조건에 맞는 문의가 없어요")).not.toBeInTheDocument();
     expect(mocks.getInquiriesForAdmin).toHaveBeenCalledTimes(4);
-    expect(mocks.getInquiriesForAdmin).toHaveBeenLastCalledWith("token", undefined, 0, 20, expect.anything());
+    expect(mocks.getInquiriesForAdmin).toHaveBeenLastCalledWith("token", undefined, 0, 10, expect.anything());
   });
 
   it("뒤처진 응답이 늦게 도착해도 사용자가 이미 이동한 유효한 페이지를 건드리지 않는다", async () => {
