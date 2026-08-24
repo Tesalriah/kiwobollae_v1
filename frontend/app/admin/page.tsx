@@ -116,7 +116,11 @@ function buildOrderFilters(key: string) {
   if (key === "PURCHASE_CONFIRMED" || key === "CANCELLED") {
     return { status: key as "PURCHASE_CONFIRMED" | "CANCELLED" };
   }
-  return { deliveryStatus: key as "PREPARING" | "SHIPPING" | "DELIVERED" };
+  // 취소된 주문과 구매확정된 주문도 배송상태(취소/확정 시점 값)가 그대로 남아 있어
+  // deliveryStatus만으로 걸면 함께 걸려 나온다. 서버가 페이지네이션까지 끝낸 뒤에
+  // 클라이언트에서 걸러내면 뒷페이지가 통째로 비거나 totalPages가 틀어지므로,
+  // status=PAID를 함께 보내 서버 쿼리 단계에서 제외한다.
+  return { deliveryStatus: key as "PREPARING" | "SHIPPING" | "DELIVERED", status: "PAID" as const };
 }
 
 // 완료된(배송완료/구매확정) 건만 최신순으로, 그 외에는 아직 처리해야 할 오래된 것부터 보이게 한다.
@@ -367,24 +371,14 @@ export default function Admin({
       orderSort(orderStatusFilter),
     )
       .then((page) => {
-        // deliveryStatus로만 거르면 취소된 주문도 배송상태(취소 시점 값)가 그대로 남아 있어
-        // 함께 걸려 나온다 — "준비중/배송중/배송완료"를 볼 때는 취소된 건은 "취소됨" 필터에서만
-        // 보이게 여기서 걸러낸다. 백엔드가 status!=CANCELLED 같은 제외 조건은 지원하지 않는다.
-        const isDeliveryStatusFilter =
-          orderStatusFilter === "PREPARING" ||
-          orderStatusFilter === "SHIPPING" ||
-          orderStatusFilter === "DELIVERED";
-        const content = isDeliveryStatusFilter
-          ? page.content.filter((detail) => detail.order.status !== "CANCELLED")
-          : page.content;
-        setOrders(content.map((detail) => detail.order));
+        setOrders(page.content.map((detail) => detail.order));
         setOrdersTotalPages(
           orderStatusFilter
             ? page.totalPages
             : Math.ceil(page.totalElements / ADMIN_PAGE_SIZE),
         );
         const map: Record<number, OrderItemData[]> = {};
-        content.forEach((detail) => {
+        page.content.forEach((detail) => {
           map[detail.order.id] = detail.items;
         });
         setOrderItemsById(map);
