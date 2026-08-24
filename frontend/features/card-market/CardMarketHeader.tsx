@@ -41,7 +41,7 @@ export default function CardMarketHeader({
       <section className="mb-14 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-[28px] border border-[#d9e2d4] bg-white p-7 shadow-[0_18px_45px_-32px_rgba(39,67,35,.45)] md:p-8">
           <div className="flex items-start gap-4">
-            <span className="material-symbols-outlined grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#eaf1e5] text-2xl text-[#496541]">
+            <span className="material-symbols-outlined flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#eaf1e5] text-2xl text-[#496541]">
               verified_user
             </span>
             <div>
