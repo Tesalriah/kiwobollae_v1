@@ -10,7 +10,7 @@ import { useUI } from '@/lib/ui';
 import { formatPhone } from '@/components/AddressForm';
 import { useRouter } from 'next/navigation';
 
-const STEPS: [ExchangeStatus, string][] = [['REQUESTED', '신청됨'], ['PREPARING', '준비중'], ['SHIPPING', '배송중'], ['DELIVERED', '배송완료']];
+const STEPS: [ExchangeStatus, string][] = [['PREPARING', '준비중'], ['SHIPPING', '배송중'], ['DELIVERED', '배송완료']];
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -79,6 +79,15 @@ export default function MyExchanges({
     setPage(nextPage);
     router.replace(`/my/exchanges?page=${nextPage + 1}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (loading || exchanges.length === 0 || !window.location.hash) return;
+    const targetId = decodeURIComponent(window.location.hash.slice(1));
+    if (!targetId.startsWith('exchange-')) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [loading, exchanges]);
 
   useEffect(() => {
     if (!hydrated || !state.accessToken) return;
@@ -181,7 +190,7 @@ export default function MyExchanges({
             const cancelled = x.status === 'CANCELLED';
             const idx = STEPS.findIndex((s) => s[0] === x.status);
             return (
-              <div key={x.id} className="rounded-[18px] bg-white p-5 shadow-card">
+              <div key={x.id} id={`exchange-${x.id}`} className="rounded-[18px] bg-white p-5 shadow-card">
                 <div className="flex flex-wrap items-center gap-3.5">
                   <span className="material-symbols-outlined flex h-14 w-14 items-center justify-center rounded-[13px] bg-brand-soft text-[28px]">redeem</span>
                   <div className="min-w-[160px] flex-1">
@@ -193,7 +202,7 @@ export default function MyExchanges({
                       {x.deliveredAt && ` · 배송완료 ${formatDate(x.deliveredAt)}`}
                     </div>
                   </div>
-                  {x.status === 'REQUESTED' && (
+                  {x.status === 'PREPARING' && (
                     <button type="button" onClick={() => cancel(x.id)} className="cursor-pointer rounded-[11px] border-[1.5px] border-[#e8bdad] bg-white px-4 py-[9px] font-bold text-[#b5502f]">
                       취소하기
                     </button>

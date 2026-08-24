@@ -1,6 +1,6 @@
 import { request, SpringPage } from '@/lib/api';
 
-export type ExchangeStatus = 'REQUESTED' | 'PREPARING' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED';
+export type ExchangeStatus = 'PREPARING' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED';
 export type CancelledBy = 'USER' | 'ADMIN';
 
 export interface ExchangeOrderData {
@@ -95,13 +95,6 @@ export function getExchangesForAdmin(
   return request<SpringPage<ExchangeOrderData>>(`/api/v1/admin/exchanges?${query.toString()}`, {
     accessToken,
     signal,
-  });
-}
-
-export function prepareExchange(exchangeId: number, accessToken: string): Promise<ExchangeOrderData> {
-  return request<ExchangeOrderData>(`/api/v1/admin/exchanges/${exchangeId}/prepare`, {
-    method: 'PATCH',
-    accessToken,
   });
 }
 

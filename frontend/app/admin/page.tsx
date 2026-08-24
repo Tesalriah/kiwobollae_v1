@@ -30,7 +30,6 @@ import {
   ExchangeOrderData,
   ExchangeStatus,
   getExchangesForAdmin,
-  prepareExchange,
   shipExchange,
 } from "@/lib/exchange-api";
 import {
@@ -67,7 +66,6 @@ const delMeta: Record<string, [string, string, string]> = {
   DELIVERED: ["배송완료", "bg-[#E8F3D8] text-brand-text", "완료됨"],
 };
 const exMeta: Record<string, [string, string, string]> = {
-  REQUESTED: ["신청됨", "bg-[#F0ECF9] text-[#7a5ea8]", "준비 시작"],
   PREPARING: ["준비중", "bg-[#FFF3CC] text-gold-text", "배송 시작"],
   SHIPPING: ["배송중", "bg-[#E3F0FA] text-[#3a76a8]", "배송 완료"],
   DELIVERED: ["배송완료", "bg-[#E8F3D8] text-brand-text", "완료됨"],
@@ -134,7 +132,6 @@ function exchangeSort(filterKey: string) {
 
 const EXCHANGE_STATUS_OPTIONS = [
   { key: "", label: "전체" },
-  { key: "REQUESTED", label: "신청됨" },
   { key: "PREPARING", label: "준비중" },
   { key: "SHIPPING", label: "배송중" },
   { key: "DELIVERED", label: "배송완료" },
@@ -145,7 +142,7 @@ const ORDER_STATUS_PRIORITY: Record<string, number> = {
   PREPARING: 0, SHIPPING: 1, DELIVERED: 2, PURCHASE_CONFIRMED: 3, CANCELLED: 4,
 };
 const EXCHANGE_STATUS_PRIORITY: Record<string, number> = {
-  REQUESTED: 0, PREPARING: 1, SHIPPING: 2, DELIVERED: 3, CANCELLED: 4,
+  PREPARING: 0, SHIPPING: 1, DELIVERED: 2, CANCELLED: 3,
 };
 
 function formatDelta(diff: number): string {
@@ -252,7 +249,7 @@ export default function Admin({
         1,
         controller.signal,
       ),
-      getExchangesForAdmin(accessToken, "REQUESTED", 0, 1, controller.signal),
+      getExchangesForAdmin(accessToken, "PREPARING", 0, 1, controller.signal),
       getAdminUsers({
         accessToken,
         status: "ACTIVE",
@@ -319,7 +316,7 @@ export default function Admin({
     {
       label: "교환 신청",
       value: kpisLoading || !kpis ? "-" : `${kpis.pendingExchanges}건`,
-      delta: kpisLoading || !kpis ? "" : "승인 대기 중",
+      delta: kpisLoading || !kpis ? "" : "배송 준비 중",
       dc: "text-gold-text",
       tab: "exchanges",
     },
@@ -508,7 +505,7 @@ export default function Admin({
   const sortedAllExchanges = useMemo(() => {
     if (exchangeStatusFilter) return exchanges;
     const buckets: Record<string, ExchangeOrderData[]> = {
-      REQUESTED: [], PREPARING: [], SHIPPING: [], DELIVERED: [], CANCELLED: [],
+      PREPARING: [], SHIPPING: [], DELIVERED: [], CANCELLED: [],
     };
     exchanges.forEach((x) => buckets[x.status].push(x));
     buckets.DELIVERED.reverse();
@@ -661,9 +658,7 @@ export default function Admin({
     if (!state.accessToken) return;
     try {
       let updated: ExchangeOrderData;
-      if (x.status === "REQUESTED")
-        updated = await prepareExchange(x.id, state.accessToken);
-      else if (x.status === "PREPARING")
+      if (x.status === "PREPARING")
         updated = await shipExchange(x.id, state.accessToken);
       else if (x.status === "SHIPPING")
         updated = await deliverExchange(x.id, state.accessToken);
@@ -1130,7 +1125,6 @@ export default function Admin({
             displayExchanges.map((x) => {
               const m = exMeta[x.status];
               const advanceable =
-                x.status === "REQUESTED" ||
                 x.status === "PREPARING" ||
                 x.status === "SHIPPING";
               return (
@@ -1156,7 +1150,7 @@ export default function Admin({
                           {m[2]}
                         </button>
                       )}
-                      {x.status === "REQUESTED" && (
+                      {x.status === "PREPARING" && (
                         <button
                           type="button"
                           onClick={() => cancelEx(x.id)}
