@@ -103,10 +103,8 @@ class PointScenarioInitDataMySqlIntegrationTest {
 		assertThat(dailyJournalRewardRepository.existsForUserAndRewardDate(user.getId(), today.minusDays(1)))
 				.isTrue();
 		assertThat(notificationRepository.findAll())
-				.filteredOn(notification -> notification.getUser().getId().equals(user.getId())
-						&& notification.getType() == NotificationType.POINT)
-				.isNotEmpty()
-				.allSatisfy(notification -> assertThat(notification.getRefType()).isEqualTo("ADMIN_ADJUST"));
+				.noneMatch(notification -> notification.getUser().getId().equals(user.getId())
+						&& notification.getType() == NotificationType.POINT);
 
 		PointActivityResponse orderPurchase = find(
 				activities,

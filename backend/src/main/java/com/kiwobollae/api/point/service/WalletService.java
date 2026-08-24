@@ -77,6 +77,22 @@ public class WalletService {
 			long amount,
 			AdminPointAdjustmentReason adjustmentReason
 	) {
+		return adjustByAdmin(adminUserId, userId, currency, amount, adjustmentReason, true);
+	}
+
+	/**
+	 * 알림 발송 여부를 선택할 수 있는 버전. 로컬 시드(PointScenarioInitData)처럼 실제 사용자
+	 * 액션이 아닌 호출에서 알림이 나가지 않도록 {@code notify=false}로 쓴다.
+	 */
+	@Transactional
+	public AdminPointAdjustmentResponse adjustByAdmin(
+			Long adminUserId,
+			Long userId,
+			CurrencyType currency,
+			long amount,
+			AdminPointAdjustmentReason adjustmentReason,
+			boolean notify
+	) {
 		if (adminUserId == null || adminUserId < 1
 				|| userId == null || userId < 1 || currency == null || amount == 0
 				|| adjustmentReason == null || !adjustmentReason.supports(amount)) {
@@ -96,15 +112,17 @@ public class WalletService {
 				adminUserId,
 				adjustmentReason
 		);
-		notificationService.notify(
-				userId,
-				NotificationType.POINT,
-				amount > 0 ? "포인트가 지급됐어요" : "포인트가 차감됐어요",
-				adjustmentReasonLabel(adjustmentReason) + " · " + currencyLabel(currency) + " " + Math.abs(amount) + "P",
-				"/my/points",
-				ADMIN_ADJUST_REF_TYPE,
-				transaction.getId()
-		);
+		if (notify) {
+			notificationService.notify(
+					userId,
+					NotificationType.POINT,
+					amount > 0 ? "포인트가 지급됐어요" : "포인트가 차감됐어요",
+					adjustmentReasonLabel(adjustmentReason) + " · " + currencyLabel(currency) + " " + Math.abs(amount) + "P",
+					"/my/points",
+					ADMIN_ADJUST_REF_TYPE,
+					transaction.getId()
+			);
+		}
 		return AdminPointAdjustmentResponse.from(userId, transaction, wallet);
 	}
 
