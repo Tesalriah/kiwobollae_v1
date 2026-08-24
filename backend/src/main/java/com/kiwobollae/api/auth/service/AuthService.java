@@ -1,7 +1,6 @@
 package com.kiwobollae.api.auth.service;
 
 import com.kiwobollae.api.auth.dto.request.*;
-import com.kiwobollae.api.auth.dto.response.AccessReissueResult;
 import com.kiwobollae.api.auth.dto.response.NicknameAvailabilityResponse;
 import com.kiwobollae.api.auth.dto.response.TokenIssueResult;
 import com.kiwobollae.api.auth.dto.response.UserResponse;
@@ -209,33 +208,41 @@ public class AuthService {
 		throw new BusinessException(ErrorCode.COMMON_INTERNAL_ERROR, "닉네임 생성에 실패했습니다. 다시 시도해 주세요.");
 	}
 
+	/**
+	 * 재발급마다 액세스·리프레시 토큰을 모두 새로 발급하고 기존 리프레시 토큰은 즉시 폐기한다
+	 * (rotation). 이미 폐기된(= 한 번 회전되고 지난) 리프레시 토큰이 다시 들어오면 탈취로 간주해
+	 * 해당 계정의 모든 세션을 강제 로그아웃시킨다 — 로테이션 없이 만료 전까지 같은 토큰을 계속
+	 * 재사용하던 이전 방식은, 토큰이 한 번 유출되면 만료 시점까지 계속 쓸 수 있고 탈취 여부를
+	 * 감지할 방법도 없었다.
+	 */
 	@Transactional
-	public AccessReissueResult reissue(String rawRefreshToken) {
+	public TokenIssueResult reissue(String rawRefreshToken) {
 		if (rawRefreshToken == null || !jwtTokenProvider.validateToken(rawRefreshToken)) {
 			throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
 		}
 
 		String tokenHash = tokenHasher.hash(rawRefreshToken);
-		RefreshToken stored = refreshTokenRepository.findByTokenHashAndRevokedAtIsNull(tokenHash)
+		RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
 				.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
+
+		if (stored.getRevokedAt() != null) {
+			LocalDateTime now = LocalDateTime.now();
+			refreshTokenRepository.findAllByUser_IdAndRevokedAtIsNull(stored.getUser().getId())
+					.forEach(token -> token.revoke(now));
+			throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
+		}
 
 		if (stored.getExpiresAt().isBefore(LocalDateTime.now())) {
 			throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED);
 		}
 
-		// No rotation: the same refresh token (and its cookie) stays valid and gets
-		// reused until it expires on its own or the user logs out.
 		User user = stored.getUser();
 		if (user.getStatus() != UserStatus.ACTIVE) {
 			throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE);
 		}
 
-		String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole().name());
-		// 액세스 토큰은 1시간짜리라 다음 날 처음 접속하면 로그인 폼을 다시 거치지 않고
-		// 거의 항상 이 경로(무음 재발급)를 타므로, "그날 접속했을 때" 리마인더는
-		// issueTokens뿐 아니라 여기서도 함께 체크해야 실제로 매일 동작한다.
-		sendJournalReminderIfNeeded(user);
-		return new AccessReissueResult(accessToken, "Bearer", UserResponse.from(user));
+		stored.revoke(LocalDateTime.now());
+		return issueTokens(user);
 	}
 
 	public UserResponse getMe(Long userId) {
