@@ -11,8 +11,8 @@ spring:
     defer-datasource-initialization: true
   sql:
     init:
-      # 기존 InitData류 ApplicationRunner의 @Profile({"local","prod"}) 대체. charge-products는
-      # 운영에서 자동 생성하지 않던 것과 동일하게 dev-seed-charge-products.sql을 빼고 로드한다.
+      # 기존 InitData류 ApplicationRunner의 @Profile({"local","prod"}) 대체. 정액 충전
+      # 상품(charge_products)은 직접 금액 충전으로 대체되며 테이블 자체가 사라졌다.
       mode: always
       data-locations: classpath:dev-seed-data.sql
 
@@ -59,8 +59,7 @@ app:
   seed:
     # 옛 InitData 계열이 만들던 테스트 계정/샘플 데이터는 이제 dev-seed-data.sql로 들어간다
     # (spring.sql.init 설정 참고) — ddl-auto: update처럼 배포 편의를 위한 임시 조치이며,
-    # 실제 서비스 오픈 전에는 반드시 spring.sql.init.mode를 꺼야 한다. 운영 충전 상품만은
-    # 관리자 콘솔에서 구성하므로 dev-seed-charge-products.sql을 data-locations에서 제외했다.
+    # 실제 서비스 오픈 전에는 반드시 spring.sql.init.mode를 꺼야 한다.
 
 payment:
   toss:

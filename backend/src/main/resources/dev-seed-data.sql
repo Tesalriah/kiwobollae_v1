@@ -14,11 +14,6 @@
 --   * 데이터가 이미 있는 DB(운영 등)에 그대로 재실행하면 안 된다. 재실행 시 실패 대신
 --     조용히 건너뛰도록 모든 INSERT를 INSERT IGNORE로 작성했지만, 이는 안전망일 뿐
 --     운영 DB에 대한 반복 실행을 권장하는 것은 아니다.
---   * charge_products 시드는 별도 파일(dev-seed-charge-products.sql)로 분리했다 —
---     원본 ChargeProductInitData만 prod에서 app.seed.charge-product.enabled=false로
---     꺼져 있었기 때문에(나머지는 전부 local/prod 공통 true), 이 파일은 local/prod
---     공통으로 로드하고 그 파일은 local에서만 로드하도록 application-*.yaml에서
---     spring.sql.init.data-locations를 다르게 구성했다.
 -- =====================================================================================
 
 -- ------------------------------------------------------------------
