@@ -17,12 +17,16 @@ import com.kiwobollae.api.auth.repository.UserRepository;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.global.security.JwtTokenProvider;
+import com.kiwobollae.api.journal.repository.DailyJournalRewardRepository;
 import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.repository.NotificationRepository;
 import com.kiwobollae.api.notification.service.NotificationService;
 import com.kiwobollae.api.point.service.WalletService;
 import com.kiwobollae.api.global.security.TokenHasher;
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -50,6 +54,37 @@ public class AuthService {
 	}
 	private final WalletService walletService;
 	private final NotificationService notificationService;
+	private final NotificationRepository notificationRepository;
+	private final DailyJournalRewardRepository dailyJournalRewardRepository;
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final String JOURNAL_REMINDER_REF_TYPE = "JOURNAL_REMINDER_DATE";
+	private static final String JOURNAL_REMINDER_TITLE = "아직 오늘 일지를 작성하지 않았어요";
+	private static final String JOURNAL_REMINDER_CONTENT = "오늘의 성장 일지를 남기고 보상을 받아보세요.";
+	private static final String JOURNAL_REMINDER_LINK_URL = "/journals/new";
+
+	// 오늘치 일지 보상을 아직 받지 않은 사용자에게 로그인 시 한 번만 작성을 유도한다.
+	// refType/refId를 (고정 문자열, 오늘 날짜의 epoch day)로 둬서 같은 날 중복 알림을 막는다.
+	private void sendJournalReminderIfNeeded(User user) {
+		LocalDate today = LocalDate.now(KST);
+		if (dailyJournalRewardRepository.existsForUserAndRewardDate(user.getId(), today)) {
+			return;
+		}
+		Long refId = today.toEpochDay();
+		if (notificationRepository.existsByUser_IdAndTypeAndRefTypeAndRefId(
+				user.getId(), NotificationType.JOURNAL_REMINDER, JOURNAL_REMINDER_REF_TYPE, refId)) {
+			return;
+		}
+		notificationService.notify(
+				user.getId(),
+				NotificationType.JOURNAL_REMINDER,
+				JOURNAL_REMINDER_TITLE,
+				JOURNAL_REMINDER_CONTENT,
+				JOURNAL_REMINDER_LINK_URL,
+				JOURNAL_REMINDER_REF_TYPE,
+				refId
+		);
+	}
 
 	// 소셜/일반 가입 모두 동일한 환영 알림을 보낸다. 일지를 쓰려면 먼저 식물을 등록해야
 	// 하므로(등록은 /journals/new가 아니라 /plants 화면의 모달에서 이뤄진다), 신규
@@ -174,6 +209,7 @@ public class AuthService {
 		throw new BusinessException(ErrorCode.COMMON_INTERNAL_ERROR, "닉네임 생성에 실패했습니다. 다시 시도해 주세요.");
 	}
 
+	@Transactional
 	public AccessReissueResult reissue(String rawRefreshToken) {
 		if (rawRefreshToken == null || !jwtTokenProvider.validateToken(rawRefreshToken)) {
 			throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
@@ -195,6 +231,10 @@ public class AuthService {
 		}
 
 		String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole().name());
+		// 액세스 토큰은 1시간짜리라 다음 날 처음 접속하면 로그인 폼을 다시 거치지 않고
+		// 거의 항상 이 경로(무음 재발급)를 타므로, "그날 접속했을 때" 리마인더는
+		// issueTokens뿐 아니라 여기서도 함께 체크해야 실제로 매일 동작한다.
+		sendJournalReminderIfNeeded(user);
 		return new AccessReissueResult(accessToken, "Bearer", UserResponse.from(user));
 	}
 
@@ -319,6 +359,7 @@ public class AuthService {
 				.createdAt(LocalDateTime.now())
 				.build();
 		refreshTokenRepository.save(entity);
+		sendJournalReminderIfNeeded(user);
 
 		return new TokenIssueResult(accessToken, "Bearer", UserResponse.from(user), refreshToken);
 	}
