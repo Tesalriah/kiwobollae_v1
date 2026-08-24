@@ -16,6 +16,14 @@ spring:
       mode: always
       data-locations: classpath:dev-seed-data.sql
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # prometheus는 k6 부하 테스트용 로컬 전용 엔드포인트(SecurityConfig에서 permitAll)라
+        # 운영에는 노출하지 않는다 — 공통 설정(application.yaml)의 include를 여기서 다시 좁힘.
+        include: health
+
 jwt:
   secret: ${JWT_SECRET}
   access-expiration: ${JWT_ACCESS_EXPIRATION}
@@ -58,3 +66,12 @@ payment:
   toss:
     base-url: ${TOSS_PAYMENTS_BASE_URL:https://api.tosspayments.com}
     secret-key: ${TOSS_PAYMENTS_SECRET_KEY}
+    connect-timeout: ${TOSS_PAYMENTS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${TOSS_PAYMENTS_READ_TIMEOUT:30s}
+    reconciliation-read-timeout: ${TOSS_PAYMENTS_RECONCILIATION_READ_TIMEOUT:5s}
+    bulkhead:
+      max-concurrent-calls: ${TOSS_PAYMENTS_MAX_CONCURRENT_CALLS:10}
+      acquire-timeout: ${TOSS_PAYMENTS_ACQUIRE_TIMEOUT:100ms}
+    circuit-breaker:
+      failure-threshold: ${TOSS_PAYMENTS_FAILURE_THRESHOLD:5}
+      open-duration: ${TOSS_PAYMENTS_CIRCUIT_OPEN_DURATION:30s}

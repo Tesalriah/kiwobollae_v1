@@ -54,7 +54,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus: k6 부하 테스트 중 Prometheus가 스크레이프할 메트릭 엔드포인트
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
@@ -106,6 +107,15 @@ payment:
   toss:
     base-url: ${TOSS_PAYMENTS_BASE_URL:https://api.tosspayments.com}
     secret-key: ${TOSS_PAYMENTS_SECRET_KEY:}
+    connect-timeout: ${TOSS_PAYMENTS_CONNECT_TIMEOUT:3s}
+    read-timeout: ${TOSS_PAYMENTS_READ_TIMEOUT:30s}
+    reconciliation-read-timeout: ${TOSS_PAYMENTS_RECONCILIATION_READ_TIMEOUT:5s}
+    bulkhead:
+      max-concurrent-calls: ${TOSS_PAYMENTS_MAX_CONCURRENT_CALLS:10}
+      acquire-timeout: ${TOSS_PAYMENTS_ACQUIRE_TIMEOUT:100ms}
+    circuit-breaker:
+      failure-threshold: ${TOSS_PAYMENTS_FAILURE_THRESHOLD:5}
+      open-duration: ${TOSS_PAYMENTS_CIRCUIT_OPEN_DURATION:30s}
 
 card-market:
   expiry:
