@@ -18,10 +18,11 @@ import com.kiwobollae.api.auth.oauth.OAuthClient;
 import com.kiwobollae.api.auth.oauth.OAuthUserInfo;
 import com.kiwobollae.api.auth.repository.RefreshTokenRepository;
 import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.security.JwtTokenProvider;
 import com.kiwobollae.api.global.security.TokenHasher;
 import com.kiwobollae.api.journal.repository.DailyJournalRewardRepository;
-import com.kiwobollae.api.notification.repository.NotificationRepository;
+import com.kiwobollae.api.notification.repository.JournalReminderLogRepository;
 import com.kiwobollae.api.notification.service.NotificationService;
 import com.kiwobollae.api.point.service.WalletService;
 import java.util.List;
@@ -49,7 +50,8 @@ class AuthServiceTest {
 	@Mock private OAuthClient oAuthClient;
 	@Mock private WalletService walletService;
 	@Mock private NotificationService notificationService;
-	@Mock private NotificationRepository notificationRepository;
+	@Mock private JournalReminderLogRepository journalReminderLogRepository;
+	@Mock private UniqueInsertGuard uniqueInsertGuard;
 	@Mock private DailyJournalRewardRepository dailyJournalRewardRepository;
 
 	private AuthService authService;
@@ -66,7 +68,8 @@ class AuthServiceTest {
 				List.of(oAuthClient),
 				walletService,
 				notificationService,
-				notificationRepository,
+				journalReminderLogRepository,
+				uniqueInsertGuard,
 				dailyJournalRewardRepository
 		);
 	}
@@ -140,14 +143,27 @@ class AuthServiceTest {
 		User existingUser = existingKakaoUser();
 		stubExistingKakaoLogin(existingUser);
 		given(dailyJournalRewardRepository.existsForUserAndRewardDate(eq(5L), any())).willReturn(false);
-		given(notificationRepository.existsByUser_IdAndTypeAndRefTypeAndRefId(
-				eq(5L), eq(NotificationType.JOURNAL_REMINDER), eq("JOURNAL_REMINDER_DATE"), any()))
-				.willReturn(false);
+		given(journalReminderLogRepository.existsByUser_IdAndReminderDate(eq(5L), any())).willReturn(false);
+		given(uniqueInsertGuard.tryInsert(any())).willReturn(true);
 
 		authService.oauthLogin(AuthProvider.KAKAO, "authorization-code", "state");
 
 		verify(notificationService).notify(
 				eq(5L), eq(NotificationType.JOURNAL_REMINDER), any(), any(), any(), eq("JOURNAL_REMINDER_DATE"), any());
+	}
+
+	@Test
+	void loginSkipsJournalReminderWhenConcurrentRequestAlreadyClaimedIt() {
+		User existingUser = existingKakaoUser();
+		stubExistingKakaoLogin(existingUser);
+		given(dailyJournalRewardRepository.existsForUserAndRewardDate(eq(5L), any())).willReturn(false);
+		given(journalReminderLogRepository.existsByUser_IdAndReminderDate(eq(5L), any())).willReturn(false);
+		given(uniqueInsertGuard.tryInsert(any())).willReturn(false);
+
+		authService.oauthLogin(AuthProvider.KAKAO, "authorization-code", "state");
+
+		verify(notificationService, never()).notify(
+				any(), eq(NotificationType.JOURNAL_REMINDER), any(), any(), any(), eq("JOURNAL_REMINDER_DATE"), any());
 	}
 
 	@Test
@@ -167,9 +183,7 @@ class AuthServiceTest {
 		User existingUser = existingKakaoUser();
 		stubExistingKakaoLogin(existingUser);
 		given(dailyJournalRewardRepository.existsForUserAndRewardDate(eq(5L), any())).willReturn(false);
-		given(notificationRepository.existsByUser_IdAndTypeAndRefTypeAndRefId(
-				eq(5L), eq(NotificationType.JOURNAL_REMINDER), eq("JOURNAL_REMINDER_DATE"), any()))
-				.willReturn(true);
+		given(journalReminderLogRepository.existsByUser_IdAndReminderDate(eq(5L), any())).willReturn(true);
 
 		authService.oauthLogin(AuthProvider.KAKAO, "authorization-code", "state");
 
@@ -195,9 +209,8 @@ class AuthServiceTest {
 		given(jwtTokenProvider.generateRefreshToken(5L)).willReturn("new-raw-refresh-token");
 		given(tokenHasher.hash("new-raw-refresh-token")).willReturn("new-refresh-token-hash");
 		given(dailyJournalRewardRepository.existsForUserAndRewardDate(eq(5L), any())).willReturn(false);
-		given(notificationRepository.existsByUser_IdAndTypeAndRefTypeAndRefId(
-				eq(5L), eq(NotificationType.JOURNAL_REMINDER), eq("JOURNAL_REMINDER_DATE"), any()))
-				.willReturn(false);
+		given(journalReminderLogRepository.existsByUser_IdAndReminderDate(eq(5L), any())).willReturn(false);
+		given(uniqueInsertGuard.tryInsert(any())).willReturn(true);
 
 		authService.reissue("raw-refresh-token");
 

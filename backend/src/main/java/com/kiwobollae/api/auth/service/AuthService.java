@@ -13,12 +13,14 @@ import com.kiwobollae.api.auth.oauth.OAuthClient;
 import com.kiwobollae.api.auth.oauth.OAuthUserInfo;
 import com.kiwobollae.api.auth.repository.RefreshTokenRepository;
 import com.kiwobollae.api.auth.repository.UserRepository;
+import com.kiwobollae.api.global.concurrency.UniqueInsertGuard;
 import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.global.security.JwtTokenProvider;
 import com.kiwobollae.api.journal.repository.DailyJournalRewardRepository;
+import com.kiwobollae.api.notification.entity.JournalReminderLog;
 import com.kiwobollae.api.notification.entity.enums.NotificationType;
-import com.kiwobollae.api.notification.repository.NotificationRepository;
+import com.kiwobollae.api.notification.repository.JournalReminderLogRepository;
 import com.kiwobollae.api.notification.service.NotificationService;
 import com.kiwobollae.api.point.service.WalletService;
 import com.kiwobollae.api.global.security.TokenHasher;
@@ -53,7 +55,8 @@ public class AuthService {
 	}
 	private final WalletService walletService;
 	private final NotificationService notificationService;
-	private final NotificationRepository notificationRepository;
+	private final JournalReminderLogRepository journalReminderLogRepository;
+	private final UniqueInsertGuard uniqueInsertGuard;
 	private final DailyJournalRewardRepository dailyJournalRewardRepository;
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -63,15 +66,21 @@ public class AuthService {
 	private static final String JOURNAL_REMINDER_LINK_URL = "/journals/new";
 
 	// 오늘치 일지 보상을 아직 받지 않은 사용자에게 로그인 시 한 번만 작성을 유도한다.
-	// refType/refId를 (고정 문자열, 오늘 날짜의 epoch day)로 둬서 같은 날 중복 알림을 막는다.
+	// existsBy 확인과 notify() 저장 사이에 동시 요청(로그인+토큰 재발급 등)이 끼어들면 둘 다
+	// "아직 안 보냄"으로 보고 중복 저장할 수 있어, 전용 잠금 테이블에 유니크 제약을 걸고
+	// UniqueInsertGuard로 원자적으로 하나만 승리하게 한다 — 이긴 요청만 실제 알림을 보낸다.
 	private void sendJournalReminderIfNeeded(User user) {
 		LocalDate today = LocalDate.now(KST);
 		if (dailyJournalRewardRepository.existsForUserAndRewardDate(user.getId(), today)) {
 			return;
 		}
-		Long refId = today.toEpochDay();
-		if (notificationRepository.existsByUser_IdAndTypeAndRefTypeAndRefId(
-				user.getId(), NotificationType.JOURNAL_REMINDER, JOURNAL_REMINDER_REF_TYPE, refId)) {
+		if (journalReminderLogRepository.existsByUser_IdAndReminderDate(user.getId(), today)) {
+			return;
+		}
+		boolean claimed = uniqueInsertGuard.tryInsert(() ->
+				journalReminderLogRepository.saveAndFlush(
+						JournalReminderLog.create(user, today, LocalDateTime.now(KST))));
+		if (!claimed) {
 			return;
 		}
 		notificationService.notify(
@@ -81,7 +90,7 @@ public class AuthService {
 				JOURNAL_REMINDER_CONTENT,
 				JOURNAL_REMINDER_LINK_URL,
 				JOURNAL_REMINDER_REF_TYPE,
-				refId
+				today.toEpochDay()
 		);
 	}
 

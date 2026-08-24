@@ -31,9 +31,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 	// 그렇지 않으면 화면에 안 보이는 알림 때문에 배지 수가 실제 목록과 어긋난다.
 	long countByUser_IdAndIsReadFalseAndCreatedAtGreaterThanEqual(Long userId, LocalDateTime retentionCutoff);
 
-	boolean existsByUser_IdAndTypeAndRefTypeAndRefId(
-			Long userId, NotificationType type, String refType, Long refId);
-
 	@Modifying
 	@Query("update Notification n set n.isRead = true, n.readAt = :readAt "
 			+ "where n.user.id = :userId and n.isRead = false")
