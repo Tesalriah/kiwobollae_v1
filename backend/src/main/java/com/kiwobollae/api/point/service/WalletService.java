@@ -15,6 +15,8 @@ import com.kiwobollae.api.point.entity.enums.PointRefType;
 import com.kiwobollae.api.point.entity.enums.PointTxType;
 import com.kiwobollae.api.point.repository.PointTransactionRepository;
 import com.kiwobollae.api.point.repository.WalletRepository;
+import com.kiwobollae.api.notification.entity.enums.NotificationType;
+import com.kiwobollae.api.notification.service.NotificationService;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -29,10 +31,24 @@ public class WalletService {
 
 	private static final long JOURNAL_REWARD_AMOUNT = 100L;
 	private static final long ORDER_FREE_POINT_UNIT = 100L;
+	private static final String ADMIN_ADJUST_REF_TYPE = "ADMIN_ADJUST";
 
 	private final WalletRepository walletRepository;
 	private final PointTransactionRepository pointTransactionRepository;
 	private final PointTransactionTimeProvider pointTransactionTimeProvider;
+	private final NotificationService notificationService;
+
+	private static String adjustmentReasonLabel(AdminPointAdjustmentReason reason) {
+		return switch (reason) {
+			case SPECIAL_EVENT -> "이벤트 지급";
+			case OUTSTANDING_MEMBER -> "우수 회원 보상";
+			case FRAUD_PENALTY -> "부정 이용 페널티";
+		};
+	}
+
+	private static String currencyLabel(CurrencyType currency) {
+		return currency == CurrencyType.FREE ? "무상" : "유상";
+	}
 
 	/** POINT-10: 일반·소셜 회원가입 트랜잭션에서 지갑 자동 생성(paid=0, free=0). auth 도메인이 호출. */
 	@Transactional
@@ -79,6 +95,15 @@ public class WalletService {
 				PointRefType.ADMIN,
 				adminUserId,
 				adjustmentReason
+		);
+		notificationService.notify(
+				userId,
+				NotificationType.POINT,
+				amount > 0 ? "포인트가 지급됐어요" : "포인트가 차감됐어요",
+				adjustmentReasonLabel(adjustmentReason) + " · " + currencyLabel(currency) + " " + Math.abs(amount) + "P",
+				"/my/points",
+				ADMIN_ADJUST_REF_TYPE,
+				transaction.getId()
 		);
 		return AdminPointAdjustmentResponse.from(userId, transaction, wallet);
 	}

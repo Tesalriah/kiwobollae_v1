@@ -20,6 +20,7 @@ import com.kiwobollae.api.point.entity.enums.AdminPointAdjustmentReason;
 import com.kiwobollae.api.point.entity.enums.CurrencyType;
 import com.kiwobollae.api.point.entity.enums.PointRefType;
 import com.kiwobollae.api.point.entity.enums.PointTxType;
+import com.kiwobollae.api.notification.repository.NotificationRepository;
 import com.kiwobollae.api.point.repository.PointTransactionRepository;
 import com.kiwobollae.api.point.repository.WalletRepository;
 import java.time.LocalDateTime;
@@ -71,12 +72,16 @@ class WalletServiceMySqlIntegrationTest {
 	private UserRepository userRepository;
 
 	@Autowired
+	private NotificationRepository notificationRepository;
+
+	@Autowired
 	private TransactionTemplate transactionTemplate;
 
 	private Long userId;
 
 	@BeforeEach
 	void setUp() {
+		notificationRepository.deleteAllInBatch();
 		pointTransactionRepository.deleteAllInBatch();
 		walletRepository.deleteAllInBatch();
 		userRepository.deleteAllInBatch();
