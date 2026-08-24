@@ -14,11 +14,13 @@ import com.kiwobollae.api.global.exception.BusinessException;
 import com.kiwobollae.api.global.exception.ErrorCode;
 import com.kiwobollae.api.payment.entity.enums.PaymentProviderType;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
@@ -186,14 +188,55 @@ class TossPaymentProviderTest {
 	@Test
 	void loadsTossProviderWithoutRestClientBuilderBean() {
 		new ApplicationContextRunner()
-				.withUserConfiguration(TossPaymentProvider.class)
+				.withInitializer(context -> context.getBeanFactory().setConversionService(
+						ApplicationConversionService.getSharedInstance()
+				))
+				.withUserConfiguration(
+						TossPaymentProvider.class,
+						TossPaymentBulkhead.class,
+						TossPaymentCircuitBreaker.class
+				)
 				.withPropertyValues(
 						"payment.toss.base-url=" + BASE_URL,
-						"payment.toss.secret-key=" + SECRET_KEY
+						"payment.toss.secret-key=" + SECRET_KEY,
+						"payment.toss.connect-timeout=2s",
+						"payment.toss.read-timeout=5s",
+						"payment.toss.reconciliation-read-timeout=1s",
+						"payment.toss.bulkhead.max-concurrent-calls=3",
+						"payment.toss.bulkhead.acquire-timeout=50ms",
+						"payment.toss.circuit-breaker.failure-threshold=3",
+						"payment.toss.circuit-breaker.open-duration=10s"
 				)
 				.run(context -> {
 					assertThat(context).hasNotFailed();
 					assertThat(context).hasSingleBean(TossPaymentProvider.class);
 				});
+	}
+
+	@Test
+	void rejectsNonPositiveTimeouts() {
+		assertThatThrownBy(() -> new TossPaymentProvider(
+				BASE_URL,
+				SECRET_KEY,
+				Duration.ZERO,
+				Duration.ofSeconds(30),
+				Duration.ofSeconds(5),
+				new TossPaymentBulkhead(10, Duration.ZERO),
+				new TossPaymentCircuitBreaker(5, Duration.ofSeconds(30), System::nanoTime)
+		))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Toss Payments 연결 타임아웃은 0보다 커야 합니다.");
+
+		assertThatThrownBy(() -> new TossPaymentProvider(
+				BASE_URL,
+				SECRET_KEY,
+				Duration.ofSeconds(3),
+				Duration.ofSeconds(-1),
+				Duration.ofSeconds(5),
+				new TossPaymentBulkhead(10, Duration.ZERO),
+				new TossPaymentCircuitBreaker(5, Duration.ofSeconds(30), System::nanoTime)
+		))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessage("Toss Payments 응답 타임아웃은 0보다 커야 합니다.");
 	}
 }
