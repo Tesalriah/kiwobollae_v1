@@ -14,6 +14,7 @@ import {
   grantLocalTestGachaCard,
 } from '@/lib/gacha-api';
 import { ApiError } from '@/lib/api';
+import { TOUR_HIGHLIGHT_EVENT, TourHighlightDetail } from '@/lib/onboarding/tourHighlightEvent';
 
 const SHOW_LOCAL_GACHA_TEST_CONTROLS = process.env.NODE_ENV !== 'production';
 
@@ -82,6 +83,18 @@ const AUTH_GATE_MESSAGE: Record<string, string> = {
   account: '마이페이지는 로그인 후 이용할 수 있어요.',
 };
 
+// 온보딩 투어가 강조하려는 data-tour-id로 열어야 할 드롭다운 그룹의 key를 찾는다.
+// targetId 자체가 그룹 key(예: "plantGroup")면 그 그룹을, 그룹 안의 개별 항목 key(예:
+// "journal")면 그 항목이 속한 그룹을 반환한다. 어느 쪽에도 해당하지 않으면 null.
+function findGroupKeyForTargetId(targetId: string): string | null {
+  for (const n of NAV) {
+    if (n.type !== 'group') continue;
+    if (n.key === targetId) return n.key;
+    if (n.items.some((item) => item.key === targetId)) return n.key;
+  }
+  return null;
+}
+
 function activeKey(pathname: string) {
   if (pathname === '/') return 'home';
   if (pathname.startsWith('/plants')) return 'plants';
@@ -127,6 +140,17 @@ export default function Navbar() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [bellOpen, profileOpen, openNavGroup]);
+
+  // 온보딩 투어가 드롭다운 그룹 안의 항목(일지/거래소)을 강조할 차례가 되면, 마우스 호버
+  // 없이도 그 그룹을 펼쳐서 스포트라이트가 실제 타겟을 찾을 수 있게 한다.
+  useEffect(() => {
+    const onTourHighlight = (e: Event) => {
+      const targetId = (e as CustomEvent<TourHighlightDetail>).detail;
+      setOpenNavGroup(targetId ? findGroupKeyForTargetId(targetId) : null);
+    };
+    window.addEventListener(TOUR_HIGHLIGHT_EVENT, onTourHighlight);
+    return () => window.removeEventListener(TOUR_HIGHLIGHT_EVENT, onTourHighlight);
+  }, []);
 
   const openNotif = (n: NotificationData) => {
     setBellOpen(false);
@@ -216,7 +240,7 @@ export default function Navbar() {
                 >
                   <Link
                     href={n.items[0].href}
-                    data-tour-id={n.items[0].key}
+                    data-tour-id={n.key}
                     onClick={(e) => {
                       guardNavClick(e, n.items[0].key);
                       setOpenNavGroup(null);
@@ -236,7 +260,12 @@ export default function Navbar() {
                     />
                   </Link>
                   {openNavGroup === n.key && (
-                    <div className="absolute left-0 top-full z-50 w-40 overflow-hidden rounded-2xl border border-line bg-white py-1.5 shadow-[0_14px_40px_-12px_rgba(85,139,47,.35)]">
+                    <div
+                      data-tour-id={n.key}
+                      className="absolute left-0 top-full z-50 w-40 overflow-hidden rounded-2xl border border-line bg-white py-1.5 shadow-[0_14px_40px_-12px_rgba(85,139,47,.35)]"
+                    >
+                      {/* 온보딩 투어가 이 패널을 강조할 때, 트리거 링크와 같은 data-tour-id를 갖게 해
+                         SpotlightTour가 두 요소의 사각형을 합쳐 드롭다운 전체를 스포트라이트하게 한다. */}
                       {n.items.map((item) => (
                         <Link
                           key={item.key}
