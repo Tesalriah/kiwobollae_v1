@@ -342,7 +342,7 @@ export default function AdminUserPanel({
         >
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[380px] animate-pop rounded-[20px] bg-white p-6">
             <h3 className="mb-1 text-[18px] font-extrabold">{suspendTarget.nickname}님을 정지할까요?</h3>
-            <p className="mb-4 text-[13px] text-sub">정지 사유를 입력해 주세요. 계정 상태가 즉시 "정지"로 바뀌어요.</p>
+            <p className="mb-4 text-[13px] text-sub">정지 사유를 입력해 주세요. 계정 상태가 즉시 &ldquo;정지&rdquo;로 바뀌어요.</p>
             <textarea
               autoFocus
               value={suspendReason}
