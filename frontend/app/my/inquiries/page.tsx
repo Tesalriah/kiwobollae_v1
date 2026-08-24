@@ -90,6 +90,19 @@ export default function Inquiries() {
     return () => controller.abort();
   }, [hydrated, state.accessToken]);
 
+  useEffect(() => {
+    if (loading || inquiries.length === 0 || !window.location.hash) return;
+    const hash = decodeURIComponent(window.location.hash.slice(1));
+    if (!hash.startsWith('inquiry-')) return;
+    const id = Number(hash.slice('inquiry-'.length));
+    if (!inquiries.some((q) => q.id === id)) return;
+    setSection('inquiry');
+    setExpandedInquiryId(id);
+    window.requestAnimationFrame(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [loading, inquiries]);
+
   // "신고 내역" 탭을 처음 열 때만 조회한다 — 문의 탭만 보는 사용자에게 불필요한 요청을 보내지
   // 않기 위해 section에 따라 지연 로딩한다.
   useEffect(() => {
@@ -234,7 +247,7 @@ export default function Inquiries() {
                 const st = STAT[q.status];
                 const expanded = expandedInquiryId === q.id;
                 return (
-                  <div key={q.id} className="rounded-2xl bg-white px-5 py-[18px] shadow-[0_2px_10px_rgba(46,54,42,.07)]">
+                  <div key={q.id} id={`inquiry-${q.id}`} className="rounded-2xl bg-white px-5 py-[18px] shadow-[0_2px_10px_rgba(46,54,42,.07)]">
                     <button
                       type="button"
                       onClick={() => setExpandedInquiryId(expanded ? null : q.id)}
